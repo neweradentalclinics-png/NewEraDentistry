@@ -1,0 +1,771 @@
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { 
+  Phone, Calendar, MapPin, Clock, Facebook, Instagram, Youtube, 
+  ShieldCheck, Star, Activity, UserPlus, Award, 
+  HeartPulse, CheckCircle2, Quote, Menu, X, ArrowRight, ArrowLeft, Search, Globe
+} from 'lucide-react';
+
+// --- Firebase Imports ---
+import { initializeApp, getApps } from 'firebase/app';
+import { getAuth, signInAnonymously } from 'firebase/auth';
+import { getFirestore, collection, onSnapshot, addDoc, doc, updateDoc, deleteDoc } from 'firebase/firestore';
+
+const firebaseConfig = {
+  apiKey: "AIzaSyDQ17UevaMBy2aVYxsrLNpdQCvn92uSKi0",
+  authDomain: "new-era-dental-center.firebaseapp.com",
+  projectId: "new-era-dental-center",
+  storageBucket: "new-era-dental-center.firebasestorage.app",
+  messagingSenderId: "11521109321",
+  appId: "1:11521109321:web:49e24509d937ff3e20be98"
+};
+
+let app, auth, db;
+try {
+  if (!getApps().length) { app = initializeApp(firebaseConfig); } 
+  else { app = getApps()[0]; }
+  auth = getAuth(app);
+  db = getFirestore(app);
+} catch (error) { console.error("Firebase Init Error:", error); }
+
+// --- Translations & Languages ---
+const LANGUAGES = [
+  { code: 'ar', label: 'العربية' }, { code: 'en', label: 'English' },
+  { code: 'es', label: 'Español' }, { code: 'it', label: 'Italiano' },
+  { code: 'ru', label: 'Русский' }, { code: 'de', label: 'Deutsch' },
+  { code: 'fr', label: 'Français' }
+];
+
+const t = {
+  ar: {
+    home: 'الرئيسية', about: 'من نحن', services: 'خدماتنا', reviews: 'آراء العملاء', book: 'احجز موعدك',
+    heroTitle: 'ابتسامتك تعكس ثقتك', heroSub: 'رعاية طبية تليق بيك بأحدث التقنيات العالمية في مصر، لأنك تستحق الأفضل دايماً.',
+    startJourney: 'ابدأ رحلة العلاج', 
+    counters: { c1: 10000, t1: 'حالة وثقوا بنا', c2: 1000, t2: 'عملية زراعة', c3: 500, t3: 'حالة تقويم' },
+    heroSlogan: 'عشان ضحكتك هي الأهم لينا، احنا هنا موجودين نرجعهالك',
+    aboutTitle: 'خبرة أكتر من ١٠ سنين في صناعة الابتسامة', 
+    aboutDesc: 'في New Era، جمعنا بين مهارة الدكاترة وأحدث الأجهزة عشان نقدم لك تجربة علاج مريحة. أكتر من 10 سنين بنهتم بصحة أسنان عملائنا عشان يضحكوا من قلبهم.',
+    vision: 'رؤيتنا', visionDesc: 'نكون دايماً رقم واحد في طب وتجميل الأسنان، ونوفرلك أحدث تكنولوجيا في العالم هنا في مصر عشان ابتسامتك تفضل منورة وصحتك في أمان.',
+    mission: 'رسالتنا', missionDesc: 'نعالج أسنانك صح من غير ألم، ونبني معاك ثقة تعيش سنين. بنهتم بتفاصيل حالتك عشان نطلع بنتيجة طبيعية 100% تعجبك وتريحك.',
+    whyUs: 'ليه تختارنا؟', whyUsDesc: 'أطباء استشاريين متخصصين، تعقيم فائق، وأجهزة متطورة تضمن لك تجربة علاجية سلسة بدون ألم.',
+    readMore: 'اقرأ المزيد', back: 'الرجوع للرئيسية', swipeHint: 'اسحب لتصفح الخدمات', reviewsTitle: 'قصص نجاح وتجارب ملهمة',
+    branches: [
+      { id: 'b1', name: 'الهرم - العمرانية' },
+      { id: 'b2', name: 'حلوان' },
+      { id: 'b3', name: 'الصف - الأخصاص' }
+    ]
+  },
+  en: {
+    home: 'Home', about: 'About', services: 'Services', reviews: 'Reviews', book: 'Book Now',
+    heroTitle: 'Your Smile Reflects Your Confidence', heroSub: 'Premium dental care with the latest global technologies in Egypt, because you always deserve the best.',
+    startJourney: 'Start Your Journey', 
+    counters: { c1: 10000, t1: 'Trusted Patients', c2: 1000, t2: 'Implants', c3: 500, t3: 'Ortho Cases' },
+    heroSlogan: 'Because your smile matters most, we are here to bring it back',
+    aboutTitle: 'Over 10 Years of Excellence in Smile Design',
+    aboutDesc: 'At New Era, we combine top-tier medical expertise with cutting-edge technology to offer you a comfortable and painless experience.',
+    vision: 'Our Vision', visionDesc: 'To be the leading dental and cosmetic center in Egypt, providing the worlds latest technologies.',
+    mission: 'Our Mission', missionDesc: 'To treat your teeth properly without pain, and build long-lasting trust. 100% natural result.',
+    whyUs: 'Why Choose Us?', whyUsDesc: 'Consultant doctors, superb sterilization, and advanced devices ensuring a painless experience.',
+    readMore: 'Read More', back: 'Back to Home', swipeHint: 'Swipe to view services', reviewsTitle: 'Inspiring Success Stories',
+    branches: [
+      { id: 'b1', name: 'Haram - Omraniya' }, { id: 'b2', name: 'Helwan' }, { id: 'b3', name: 'Saff' }
+    ]
+  }
+};
+['es', 'it', 'ru', 'de', 'fr'].forEach(l => t[l] = t.en);
+
+const SERVICES = [
+  { id: 'exam', title: 'كشف وتشخيص', icon: <Search size={24} />, image: 'https://images.unsplash.com/photo-1606811841689-23dfddce3e95?auto=format&fit=crop&w=800&q=80', desc: 'بنصور أسنانك بكاميرات دقيقة ونكشف على كل تفصيلة عشان نحط خطة علاج مظبوطة وتوفر وقتك وفلوسك.' },
+  { id: 'xray', title: 'أشعة 3D', icon: <Activity size={24} />, image: 'https://images.unsplash.com/photo-1530497610245-94d3c16cda28?auto=format&fit=crop&w=800&q=80', desc: 'أشعة الـ 3D بتدينا صورة كاملة للفك، عشان نبقى شايفين بوضوح قبل ما نلمس أي حاجة، وخصوصاً في الزراعة.' },
+  { id: 'fillings', title: 'حشوات تجميلية', icon: <Star size={24} />, image: 'https://images.unsplash.com/photo-1598256989800-fea5ce5146f2?auto=format&fit=crop&w=800&q=80', desc: 'حشوات بلون السنان بالظبط، بنشيل التسوس ونقفل بمواد قوية جداً مش هتعرف تفرقها عن سنتك الطبيعية.' },
+  { id: 'fixed-prosthetics', title: 'تركيبات ثابتة', icon: <ShieldCheck size={24} />, image: 'https://images.unsplash.com/photo-1600170311833-c2cf5280ce49?auto=format&fit=crop&w=800&q=80', desc: 'طربوش أو كوبري زيركون بيعيش معاك، بنعوض بيه السنان المكسورة عشان تاكل وتضحك من غير إحراج.' },
+  { id: 'removable-prosthetics', title: 'تركيبات متحركة', icon: <UserPlus size={24} />, image: 'https://images.unsplash.com/photo-1588776814546-1ffcf47267a5?auto=format&fit=crop&w=800&q=80', desc: 'أطقم خفيفة ومريحة، متفصلة بالمللي عشان تركب وتتخلع بسهولة وتديك شكل طبيعي جداً.' },
+  { id: 'ortho', title: 'تقويم الأسنان', icon: <Award size={24} />, image: 'https://images.unsplash.com/photo-1527613426406-880c511252ee?auto=format&fit=crop&w=800&q=80', desc: 'بنرصلك أسنانك سواء بالمعدني أو الشفاف، في كام شهر هتلاقي وشك وابتسامتك اختلفوا 180 درجة.' },
+  { id: 'implants', title: 'زراعة الأسنان', icon: <CheckCircle2 size={24} />, image: 'https://plus.unsplash.com/premium_photo-1661559132208-d102e1c9da60?auto=format&fit=crop&w=800&q=80', desc: 'بنعوض السن اللي راح بجدر تيتانيوم بيعضم في الفك، عملية بسيطة بتديك سن جديد يعيش معاك العمر كله.' },
+  { id: 'jaw', title: 'علاج مفصل الفك', icon: <ShieldCheck size={24} />, image: 'https://images.unsplash.com/photo-1579684385127-1ef15d508118?auto=format&fit=crop&w=800&q=80', desc: 'لو عندك طرقعة أو وجع في مفصل الفك، بنعملك خطة علاج تريحك من الصداع والألم وترجع قفلة بقك.' },
+  { id: 'kids', title: 'أسنان الأطفال', icon: <HeartPulse size={24} />, image: 'https://images.unsplash.com/photo-1552664730-d307ca884978?auto=format&fit=crop&w=800&q=80', desc: 'بنعالج أسنان أطفالك باللعب من غير ما يخافوا، الدكاترة عندنا بالهم طويل جداً عشان الطفل يحب العيادة.' },
+];
+
+const REVIEWS = [
+  { name: 'أحمد عبدالرحمن', text: 'جيت عملت تنظيف جير والخدمة كانت ممتازة، أسناني رجعت طبيعية ولونها فاتح زي الأول بالظبط. شكراً ليكم.' },
+  { name: 'سارة محمود', text: 'عملت تركيبات أمامية، بجد لونها وشكلها مش بقدر أفرقهم عن الحقيقي! ده غير إن سيستم الحجز ممتاز جداً وفيه نظام.' },
+  { name: 'م. خالد مصطفى', text: 'تجربتي في زراعة الأسنان كانت ممتازة. كنت خايف جداً بس الدكتور طمني ومحستش بأي ألم، والنتيجة فوق الخيال.' },
+  { name: 'داليا سمير', text: 'أحسن مكان تودي فيه أطفالك. بنتي كانت بتخاف بس قسم الأطفال عندهم مجهز والدكاترة بالهم طويل وبيعرفوا يطمنوهم.' },
+  { name: 'عمر ياسين', text: 'د. مصطفى إيده تتلف في حرير، خلعت ضرس العقل جراحياً ومحستش بأي حاجة خالص.' },
+  { name: 'نورهان علي', text: 'العيادة نضيفة جداً والتعقيم يطمن، عملت تبييض ليزر والنتيجة وهمية من أول جلسة.' },
+  { name: 'محمود عز', text: 'رحت أعمل حشو عصب، خلصت في جلسة واحدة والدكتور شاطر جداً وفاهم بيعمل إيه.' },
+  { name: 'هبة كمال', text: 'بصراحة أسعارهم معقولة جداً مقارنة بالخدمة والنضافة والاهتمام اللي شفته في المركز.' },
+  { name: 'طارق حسن', text: 'تقويم الانفزلاين (الشفاف) عندهم تحفة، ومحدش واخد باله إني مركب تقويم أصلاً.' },
+  { name: 'منى جمال', text: 'الاستقبال ذوق جداً، والدكاترة بتشرحلك كل خطوة بالتفصيل قبل ما تبدأ شغل، وده طمني جداً.' },
+  { name: 'كريم سعيد', text: 'أخيراً لقيت عيادة بتعالج مفصل الفك بجد، الصداع المستمر راح والحمد لله.' },
+  { name: 'ريم فوزي', text: 'ركبت طقم أسنان لوالدي، مريح جداً وبياكل عليه براحته ومفيش أي ألم.' },
+  { name: 'يوسف ماجد', text: 'ابتسامة هوليود عندهم طبيعية ومش مصطنعة (فيك) زي أماكن تانية بشوفها، تسلم إيديكم.' },
+  { name: 'دينا حلمي', text: 'تجربة ممتازة، المواعيد مظبوطة جداً ومفيش انتظار كتير زي العيادات التانية.' }
+];
+
+// --- Intersection Observer for Live Counter ---
+const LiveCounter = ({ targetNumber, title }) => {
+  const [count, setCount] = useState(0);
+  const [isVisible, setIsVisible] = useState(false);
+  const counterRef = useRef(null);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting) setIsVisible(true);
+    }, { threshold: 0.1 });
+    if (counterRef.current) observer.observe(counterRef.current);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (!isVisible) return;
+    let startTime = null;
+    const duration = 2500; // مدة العد السريع
+    const pauseDuration = 1500; // مدة الوقوف على الرقم النهائي قبل ما يعيد
+    const totalDuration = duration + pauseDuration;
+    let animationFrameId;
+
+    const animate = (timestamp) => {
+      if (!startTime) startTime = timestamp;
+      let progress = timestamp - startTime;
+
+      // لو الوقت عدى الوقت الإجمالي (العد + الوقوف)، نعيد من الأول
+      if (progress >= totalDuration) {
+        startTime = timestamp;
+        progress = 0;
+      }
+      
+      // طول ما إحنا في فترة العد
+      if (progress <= duration) {
+        const percentage = Math.min(progress / duration, 1);
+        const easeOutQuart = 1 - Math.pow(1 - percentage, 4);
+        setCount(Math.floor(easeOutQuart * targetNumber));
+      } else {
+        // نثبت على الرقم النهائي في فترة الوقوف
+        setCount(targetNumber);
+      }
+
+      animationFrameId = requestAnimationFrame(animate);
+    };
+
+    animationFrameId = requestAnimationFrame(animate);
+    
+    return () => cancelAnimationFrame(animationFrameId);
+  }, [targetNumber, isVisible]);
+
+  return (
+    <div ref={counterRef} className="flex flex-col items-center justify-center">
+      <span className="text-3xl md:text-4xl font-black text-pharaonic drop-shadow-lg" dir="ltr">
+        +{count.toLocaleString('en-US')}
+      </span>
+      <span className="text-sm md:text-base text-white font-bold mt-1 tracking-wide">{title}</span>
+    </div>
+  );
+};
+
+// --- Reusable Vision & Mission Component ---
+const VisionMissionSection = ({ l, isRtl }) => (
+  <section className="py-12 bg-[#FDFCFB]">
+    <div className="container mx-auto px-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-6xl mx-auto">
+        <div className="bg-gray-900 text-white rounded-3xl p-6 shadow-2xl relative overflow-hidden animate-float-fast" style={{ animationDuration: '5s' }}>
+          <div className="absolute top-0 right-0 w-32 h-32 bg-pharaonic/10 rounded-full blur-2xl"></div>
+          <h3 className="text-xl font-black mb-3 flex items-center text-pharaonic">
+            <Star size={24} className={isRtl?"ml-2":"mr-2"} /> {l.vision}
+          </h3>
+          <p className="text-gray-300 text-sm leading-relaxed font-bold">
+            {l.visionDesc}
+          </p>
+        </div>
+        
+        <div className="bg-white rounded-3xl p-6 shadow-2xl border border-gray-100 relative overflow-hidden animate-float-slow" style={{ animationDuration: '7s' }}>
+          <div className="absolute bottom-0 left-0 w-32 h-32 bg-pharaonic/10 rounded-full blur-2xl"></div>
+          <h3 className="text-xl font-black mb-3 flex items-center text-gray-900">
+            <ShieldCheck size={24} className={`text-pharaonic ${isRtl?"ml-2":"mr-2"}`} /> {l.mission}
+          </h3>
+          <p className="text-gray-600 text-sm leading-relaxed font-bold">
+             {l.missionDesc}
+          </p>
+        </div>
+
+        <div className="bg-pharaonic text-white rounded-3xl p-6 shadow-2xl relative overflow-hidden animate-float-fast" style={{ animationDuration: '6s' }}>
+          <div className="absolute top-0 left-0 w-32 h-32 bg-white/10 rounded-full blur-2xl"></div>
+          <h3 className="text-xl font-black mb-3 flex items-center text-white">
+            <CheckCircle2 size={24} className={isRtl?"ml-2":"mr-2"} /> {l.whyUs}
+          </h3>
+          <p className="text-white/90 text-sm leading-relaxed font-bold">
+             {l.whyUsDesc}
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+);
+
+const App = () => {
+  const [currentView, setCurrentView] = useState('home');
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [lang, setLang] = useState('ar');
+  const [isLangOpen, setIsLangOpen] = useState(false);
+  const [savedScroll, setScroll] = useState(0);
+  const [scrolled, setScrolled] = useState(false);
+  
+  const sliderRef = useRef(null);
+  const reviewSliderRef = useRef(null);
+
+  const l = t[lang];
+  const isRtl = lang === 'ar';
+
+  useEffect(() => {
+    const handleScroll = () => { setScrolled(window.scrollY > 30); };
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  const handleServiceClick = (id) => {
+    setScroll(window.scrollY);
+    setCurrentView(id);
+    window.scrollTo(0, 0);
+  };
+
+  const handleBackHome = () => {
+    setCurrentView('home');
+    setTimeout(() => window.scrollTo({ top: savedScroll, behavior: 'instant' }), 50);
+  };
+
+  const scrollSlider = (direction, ref) => {
+    if (ref.current) {
+      const scrollAmount = isRtl ? (direction === 'left' ? -250 : 250) : (direction === 'left' ? -250 : 250);
+      ref.current.scrollBy({ left: scrollAmount, behavior: 'smooth' });
+    }
+  };
+
+  const activeService = SERVICES.find(s => s.id === currentView);
+
+  // --- Booking Component ---
+  const BookingSection = ({ defaultService = "" }) => {
+    const [view, setView] = useState('landing'); 
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [error, setError] = useState("");
+    const [formData, setFormData] = useState({ patientName: '', phone: '', branchId: '', service: defaultService });
+    const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+    const [selectedTime, setSelectedTime] = useState(null);
+    const [appointments, setAppointments] = useState([]);
+    const [bookingCode, setBookingCode] = useState(""); 
+    const [currentApp, setCurrentApp] = useState(null);
+
+    const ALL_SLOTS = ["16:00", "16:30", "17:00", "17:30", "18:00", "18:30", "19:00", "19:30", "20:00", "20:30", "21:00", "21:30", "22:00"];
+
+    const formatTime = (time24) => {
+      const [h, m] = time24.split(':');
+      let hours = parseInt(h, 10);
+      const ampm = hours >= 12 ? 'م' : 'ص';
+      hours = hours % 12 || 12;
+      return `${hours}:${m} ${ampm}`;
+    };
+
+    useEffect(() => {
+      if (!db || !auth) return;
+      const initFirebase = async () => {
+        try {
+          await signInAnonymously(auth);
+          const unsub2 = onSnapshot(collection(db, 'appointments'), (snap) => {
+            setAppointments(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+          });
+          return () => { unsub2(); };
+        } catch (err) { console.error("Firebase fetch error:", err); }
+      };
+      initFirebase();
+    }, []);
+
+    const bookedSlots = useMemo(() => {
+      return appointments
+          .filter(app => app.date === selectedDate && app.branchId === formData.branchId && (!currentApp || app.id !== currentApp.id)) 
+          .map(app => app.time);
+    }, [appointments, selectedDate, formData.branchId, currentApp]);
+
+    useEffect(() => { if (bookedSlots.includes(selectedTime)) setSelectedTime(null); }, [selectedDate, bookedSlots, selectedTime, formData.branchId]);
+
+    const handleSubmit = async (e) => {
+      e.preventDefault();
+      if (!selectedTime) return setError(isRtl ? "الرجاء اختيار الوقت" : "Please select a time");
+      if (!formData.branchId) return setError(isRtl ? "الرجاء اختيار الفرع" : "Please select a branch");
+      
+      setIsSubmitting(true); setError("");
+      const generatedCode = currentApp ? currentApp.bookingCode : "NE-" + Math.floor(1000 + Math.random() * 9000);
+
+      const appointmentData = {
+          patientName: formData.patientName, phone: formData.phone, date: selectedDate, time: selectedTime,
+          service: formData.service || "كشف عام", branchId: formData.branchId, bookingCode: generatedCode, timestamp: new Date().toISOString()
+      };
+
+      try {
+          if (db) {
+            if (currentApp) await updateDoc(doc(db, "appointments", currentApp.id), appointmentData);
+            else await addDoc(collection(db, "appointments"), appointmentData);
+          }
+          setBookingCode(generatedCode); setIsSubmitting(false); setView('success');
+          setFormData({ patientName: '', phone: '', branchId: '', service: defaultService });
+          setSelectedTime(null); setCurrentApp(null);
+      } catch (err) { setError("Error connecting. Try again."); setIsSubmitting(false); }
+    };
+
+    const handleSearchBooking = (e) => {
+      e.preventDefault(); setIsSubmitting(true); setError("");
+      const searchCode = e.target.searchCode.value.trim().toUpperCase();
+      const found = appointments.find(a => a.bookingCode === searchCode);
+      if (found) {
+          setCurrentApp(found);
+          setFormData({ patientName: found.patientName, phone: found.phone, branchId: found.branchId, service: found.service });
+          setSelectedDate(found.date); setSelectedTime(found.time);
+      } else { setError(isRtl ? "كود غير صحيح" : "Invalid code"); }
+      setIsSubmitting(false);
+    };
+
+    const todayStr = new Date().toISOString().split('T')[0];
+    const currentHour = new Date().getHours();
+    const currentMinute = new Date().getMinutes();
+
+    return (
+      <div className="w-full max-w-4xl mx-auto px-4 font-body" id="booking-section" dir={isRtl ? 'rtl' : 'ltr'}>
+        {view === 'success' && (
+           <div className="bg-white p-8 rounded-3xl shadow-2xl text-center border border-gray-100 mx-auto max-w-sm">
+             <div className="w-16 h-16 bg-green-50 text-green-500 rounded-full flex items-center justify-center mx-auto mb-4"><CheckCircle2 size={32} /></div>
+             <h2 className="text-xl font-bold text-gray-800 mb-2">{isRtl ? 'تم الحجز بنجاح!' : 'Booked Successfully!'}</h2>
+             <div className="bg-pharaonic/10 border border-pharaonic/20 rounded-2xl p-4 mb-6 shadow-inner">
+                 <p className="text-xs font-bold text-pharaonic-dark mb-1">{isRtl ? 'كود الحجز الخاص بك' : 'Your Booking Code'}</p>
+                 <p className="text-2xl font-black text-gray-900 tracking-widest">{bookingCode}</p>
+             </div>
+             <button onClick={() => setView('landing')} className="w-full py-3 bg-pharaonic text-white font-bold rounded-xl shadow-lg hover:bg-pharaonic-dark transition-colors">{isRtl ? 'حسناً' : 'Done'}</button>
+           </div>
+        )}
+
+        {view === 'manage' && (
+          <div className="bg-white p-8 rounded-3xl shadow-2xl text-center border border-gray-100 mx-auto max-w-sm relative">
+             <button onClick={() => {setView('landing'); setCurrentApp(null); setError("");}} className="absolute top-4 right-4 text-gray-400 hover:text-red-500 transition"><X /></button>
+             <h2 className="text-xl font-bold text-gray-800 mb-4 mt-2">{isRtl ? 'إدارة موعدك' : 'Manage Booking'}</h2>
+             {error && <div className="bg-red-50 text-red-500 p-2 rounded-lg text-sm font-bold mb-4">{error}</div>}
+             {!currentApp ? (
+                 <form onSubmit={handleSearchBooking}>
+                     <input type="text" name="searchCode" required placeholder="NE-XXXX" className="w-full bg-gray-50 border border-gray-200 p-3 rounded-xl text-center font-bold uppercase mb-4 focus:border-pharaonic outline-none shadow-inner" />
+                     <button type="submit" className="w-full py-3 bg-pharaonic text-white font-bold rounded-xl shadow-lg hover:bg-pharaonic-dark transition-colors">{isRtl ? 'بحث' : 'Search'}</button>
+                 </form>
+             ) : (
+                 <div className="space-y-3">
+                     <button onClick={() => setView('landing')} className="w-full py-3 bg-pharaonic text-white font-bold rounded-xl shadow-lg hover:bg-pharaonic-dark transition-colors">{isRtl ? 'تعديل الموعد' : 'Edit Booking'}</button>
+                 </div>
+             )}
+          </div>
+        )}
+
+        {view === 'landing' && (
+          <div className="bg-white w-full mx-auto rounded-[30px] shadow-2xl p-6 md:p-10 border border-gray-100 relative mt-6">
+            
+            {/* Smaller Manage Button */}
+            <button onClick={() => setView('manage')} className="absolute -top-5 left-1/2 transform -translate-x-1/2 bg-gray-900 text-pharaonic px-6 py-2.5 rounded-full text-xs font-black shadow-2xl hover:bg-black hover:scale-105 transition-all whitespace-nowrap border border-pharaonic/50 z-10">
+                {isRtl ? 'هل لديك موعد مسبق؟' : 'Have an appointment?'}
+            </button>
+            
+            <div className="text-center mb-8 mt-4">
+                <h2 className="text-2xl md:text-3xl font-black text-gray-900 mb-2">{currentApp ? (isRtl?'تعديل الحجز':'Edit') : l.book}</h2>
+                <div className="w-16 h-1.5 bg-pharaonic mx-auto rounded-full"></div>
+            </div>
+            {error && <div className="bg-red-50 text-red-600 p-3 rounded-xl text-sm font-bold mb-4 text-center">{error}</div>}
+            
+            <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-4">
+                    <input type="text" value={formData.patientName} onChange={e=>setFormData({...formData, patientName: e.target.value})} required placeholder={isRtl?"الاسم بالكامل":"Full Name"} className="w-full bg-gray-50 border border-gray-200 focus:border-pharaonic p-3.5 rounded-xl outline-none font-bold text-sm transition-colors shadow-inner" />
+                    <input type="tel" value={formData.phone} onChange={e=>setFormData({...formData, phone: e.target.value})} required placeholder={isRtl?"رقم الموبايل":"Phone Number"} dir="ltr" className="w-full bg-gray-50 border border-gray-200 focus:border-pharaonic p-3.5 rounded-xl outline-none font-bold text-sm text-right transition-colors shadow-inner" />
+                    <select value={formData.branchId} onChange={e=>setFormData({...formData, branchId: e.target.value})} required className="w-full bg-gray-50 border border-gray-200 focus:border-pharaonic p-3.5 rounded-xl outline-none font-bold text-sm text-gray-700 transition-colors shadow-inner">
+                        <option value="" disabled>{isRtl?"اختر الفرع...":"Select Branch..."}</option>
+                        {l.branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                    </select>
+                </div>
+                <div className="space-y-4">
+                    <input type="date" required value={selectedDate} onChange={(e) => { setSelectedDate(e.target.value); setSelectedTime(null); }} min={todayStr} className="w-full bg-white border-2 border-pharaonic/30 focus:border-pharaonic p-3.5 rounded-xl outline-none font-bold text-sm text-gray-800 cursor-pointer transition-colors shadow-sm" />
+                    <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 shadow-inner">
+                        <div className="grid grid-cols-3 gap-2 max-h-36 overflow-y-auto pr-1 custom-scrollbar">
+                            {ALL_SLOTS.map(slot => {
+                                let isPast = false;
+                                if (selectedDate === todayStr) {
+                                    const [sh, sm] = slot.split(':').map(Number);
+                                    if (sh < currentHour || (sh === currentHour && sm <= currentMinute)) isPast = true;
+                                }
+                                const isBooked = bookedSlots.includes(slot) || isPast;
+                                const isSelected = selectedTime === slot;
+                                return (
+                                    <button key={slot} type="button" disabled={isBooked || !formData.branchId} onClick={() => setSelectedTime(slot)}
+                                        className={`py-2 rounded-lg text-xs font-bold transition-all border shadow-sm ${
+                                            !formData.branchId || isBooked ? 'bg-gray-100 border-transparent text-gray-400 opacity-50 cursor-not-allowed shadow-none'
+                                            : isSelected ? 'bg-pharaonic border-pharaonic text-white shadow-md scale-105'
+                                            : 'bg-white border-gray-200 text-gray-700 hover:border-pharaonic'
+                                        }`}>{formatTime(slot)}</button>
+                                )
+                            })}
+                        </div>
+                    </div>
+                </div>
+                <div className="md:col-span-2 mt-2">
+                  <button type="submit" disabled={isSubmitting || !selectedTime || !formData.branchId}
+                      className="w-full bg-pharaonic text-white font-black py-4 rounded-xl shadow-xl hover:shadow-pharaonic/50 hover:-translate-y-1 transition-all disabled:opacity-50 text-lg disabled:hover:translate-y-0"
+                  >
+                      {isSubmitting ? '...' : (isRtl ? 'تأكيد الحجز' : 'Confirm Booking')}
+                  </button>
+                </div>
+            </form>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <div dir={isRtl ? "rtl" : "ltr"} className="min-h-screen bg-[#FDFCFB] font-body text-gray-800 overflow-x-hidden">
+      
+      {/* CSS, Fonts & Animations */}
+      <style dangerouslySetInnerHTML={{__html: `
+        @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&display=swap');
+        :root {
+          --pharaonic: #D4AF37; 
+          --pharaonic-dark: #B5952F;
+        }
+        .font-body { font-family: 'Tajawal', sans-serif; }
+        .bg-pharaonic { background-color: var(--pharaonic); }
+        .text-pharaonic { color: var(--pharaonic); }
+        .border-pharaonic { border-color: var(--pharaonic); }
+        .hide-scroll-bar::-webkit-scrollbar { display: none; }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: var(--pharaonic); border-radius: 4px; }
+        .animate-fade-in { animation: fadeIn 0.4s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        
+        @keyframes float-slow { 0%, 100% { transform: translateY(0px); } 50% { transform: translateY(-10px); } }
+        @keyframes float-fast { 0%, 100% { transform: translateY(0px); } 50% { transform: translateY(-6px); } }
+        .animate-float-slow { animation: float-slow 4s ease-in-out infinite; }
+        .animate-float-fast { animation: float-fast 2.5s ease-in-out infinite; }
+      `}} />
+
+      {/* Floating Official WhatsApp Button (Left Side) */}
+      <a href="https://wa.me/201121593393" target="_blank" rel="noreferrer" 
+         className="fixed bottom-6 left-6 z-50 bg-[#25D366] text-white w-14 h-14 rounded-full shadow-[0_4px_15px_rgba(37,211,102,0.4)] hover:scale-110 transition-transform flex items-center justify-center border-none">
+        <svg viewBox="0 0 24 24" width="30" height="30" fill="currentColor">
+          <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51a12.8 12.8 0 00-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/>
+        </svg>
+      </a>
+
+      {/* Floating Navbar */}
+      <div className={`fixed z-50 transition-all duration-300 w-full ${scrolled ? 'top-4 px-4' : 'top-0 px-0'}`}>
+        <nav className={`${scrolled ? 'rounded-2xl shadow-2xl bg-white/95 backdrop-blur-lg border border-gray-100' : 'bg-white shadow-sm border-b border-gray-100'}`}>
+          <div className="container mx-auto px-4 py-3 flex justify-between items-center">
+            <div className="flex items-center cursor-pointer" onClick={handleBackHome}>
+              <div className="flex flex-col">
+                <h1 className="text-2xl font-black text-gray-900 tracking-tight">NEW ERA</h1>
+                <span className="text-pharaonic text-[9px] font-black tracking-[0.2em] uppercase">Dental Center</span>
+              </div>
+            </div>
+            
+            <div className="hidden md:flex space-x-6 space-x-reverse items-center">
+              <button onClick={handleBackHome} className={`font-bold transition ${currentView === 'home' ? 'text-pharaonic' : 'text-gray-600 hover:text-pharaonic'}`}>{l.home}</button>
+              <button onClick={() => { handleBackHome(); setTimeout(() => document.getElementById('about')?.scrollIntoView(), 100); }} className="text-gray-600 hover:text-pharaonic font-bold transition">{l.about}</button>
+              <button onClick={() => { handleBackHome(); setTimeout(() => document.getElementById('services')?.scrollIntoView(), 100); }} className="text-gray-600 hover:text-pharaonic font-bold transition">{l.services}</button>
+              <button onClick={() => { handleBackHome(); setTimeout(() => document.getElementById('reviews')?.scrollIntoView(), 100); }} className="text-gray-600 hover:text-pharaonic font-bold transition">{l.reviews}</button>
+              
+              {/* Language Dropdown */}
+              <div className="relative">
+                <button onClick={() => setIsLangOpen(!isLangOpen)} className="flex items-center text-gray-600 hover:text-pharaonic font-bold text-sm bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-200">
+                  <Globe size={16} className={isRtl?"ml-1":"mr-1"} /> {lang.toUpperCase()}
+                </button>
+                {isLangOpen && (
+                  <div className="absolute top-full mt-2 w-32 bg-white border border-gray-100 shadow-2xl rounded-xl overflow-hidden right-0">
+                    {LANGUAGES.map(lng => (
+                      <button key={lng.code} onClick={() => {setLang(lng.code); setIsLangOpen(false);}} className="block w-full text-start px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-pharaonic font-bold transition-colors">
+                        {lng.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <a href="#booking-section" className="bg-gray-900 text-white px-5 py-2 rounded-xl font-bold hover:bg-pharaonic transition shadow-lg flex items-center text-sm">
+                <Calendar size={16} className={isRtl?"ml-2":"mr-2"} /> {l.book}
+              </a>
+            </div>
+
+            <div className="md:hidden flex items-center space-x-4 space-x-reverse">
+              <button onClick={() => {setLang(lang === 'ar' ? 'en' : 'ar')}} className="text-gray-600 font-bold text-xs bg-gray-50 px-2 py-1 rounded border">
+                {lang === 'ar' ? 'EN' : 'AR'}
+              </button>
+              <button className="text-gray-900" onClick={() => setIsMenuOpen(!isMenuOpen)}>
+                {isMenuOpen ? <X size={26} /> : <Menu size={26} />}
+              </button>
+            </div>
+          </div>
+          
+          {/* Mobile Menu */}
+          {isMenuOpen && (
+            <div className="md:hidden bg-white border-t border-gray-100 px-4 py-4 space-y-4 absolute w-full shadow-2xl rounded-b-2xl">
+              <button onClick={() => {handleBackHome(); setIsMenuOpen(false);}} className="block w-full text-start font-bold text-gray-800">{l.home}</button>
+              <button onClick={() => {handleBackHome(); setIsMenuOpen(false); setTimeout(() => document.getElementById('about')?.scrollIntoView(), 100);}} className="block w-full text-start font-bold text-gray-800">{l.about}</button>
+              <button onClick={() => {handleBackHome(); setIsMenuOpen(false); setTimeout(() => document.getElementById('services')?.scrollIntoView(), 100);}} className="block w-full text-start font-bold text-gray-800">{l.services}</button>
+              <button onClick={() => {handleBackHome(); setIsMenuOpen(false); setTimeout(() => document.getElementById('reviews')?.scrollIntoView(), 100);}} className="block w-full text-start font-bold text-gray-800">{l.reviews}</button>
+              <a href="#booking-section" onClick={() => setIsMenuOpen(false)} className="w-full bg-pharaonic text-white px-4 py-3 rounded-xl font-bold flex justify-center">{l.book}</a>
+            </div>
+          )}
+        </nav>
+      </div>
+
+      <div className={scrolled ? "mt-24" : "mt-0"}></div>
+
+      {currentView === 'home' ? (
+        <main>
+          {/* Hero Section */}
+          <section className="relative bg-gray-900 pt-32 pb-24 overflow-hidden">
+            {/* Beautiful Smile Image with Lighter Overlay */}
+            <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1590620163351-40be66d2149e?auto=format&fit=crop&w=2000&q=80')] bg-cover bg-center opacity-80 mix-blend-overlay"></div>
+            {/* Lighter gradient to let the image show more */}
+            <div className="absolute inset-0 bg-gradient-to-b from-gray-900/40 via-gray-900/10 to-[#FDFCFB]"></div>
+
+            <div className="container mx-auto px-4 relative z-10 flex flex-col items-center text-center">
+              {/* Reduced Line Height & Spacing */}
+              <div className="max-w-4xl mx-auto mb-6 animate-float-slow">
+                <h1 className="text-4xl md:text-6xl lg:text-7xl font-black text-white leading-[1.1] md:leading-[1.1] mb-2 drop-shadow-2xl">
+                  {l.heroTitle}
+                </h1>
+                <p className="text-lg md:text-2xl text-white font-bold max-w-2xl mx-auto drop-shadow-lg">
+                  {l.heroSub}
+                </p>
+              </div>
+
+              {/* Live Counters (Stacked Vertically) */}
+              <div className="w-full max-w-3xl mx-auto mb-8 animate-float-fast">
+                <div className="flex flex-col space-y-3 mb-6">
+                  <LiveCounter targetNumber={l.counters.c1} title={l.counters.t1} />
+                  <LiveCounter targetNumber={l.counters.c2} title={l.counters.t2} />
+                  <LiveCounter targetNumber={l.counters.c3} title={l.counters.t3} />
+                </div>
+                
+                {/* Slogan Text Only (No Border) */}
+                <p className="text-pharaonic font-black text-xl md:text-2xl drop-shadow-xl mt-4">
+                  {l.heroSlogan}
+                </p>
+              </div>
+
+              <div className="mt-2">
+                <a href="#booking-section" className="inline-flex items-center bg-pharaonic text-white px-10 py-4 rounded-full font-black text-xl hover:bg-pharaonic-dark hover:scale-105 transition-all shadow-[0_0_30px_rgba(212,175,55,0.6)] border-2 border-white/20">
+                  {l.startJourney} <ArrowRight size={22} className={isRtl?"mr-3":"ml-3"} />
+                </a>
+              </div>
+            </div>
+          </section>
+
+          {/* About Section */}
+          <section id="about" className="py-12 bg-[#FDFCFB] relative z-20">
+            <div className="container mx-auto px-4 text-center max-w-2xl animate-float-slow" style={{ animationDuration: '6s' }}>
+              <span className="text-pharaonic font-black text-xs tracking-widest uppercase mb-2 block">{l.about}</span>
+              <h2 className="text-2xl md:text-3xl font-black text-gray-900 mb-4">{l.aboutTitle}</h2>
+              <p className="text-gray-600 text-base md:text-lg leading-relaxed font-bold">
+                {l.aboutDesc}
+              </p>
+            </div>
+          </section>
+
+          {/* Services Section */}
+          <section id="services" className="py-16 bg-white border-y border-gray-100 overflow-hidden">
+            <div className="container mx-auto px-4 relative">
+              <div className="text-center mb-10">
+                <span className="text-pharaonic font-black text-xs tracking-widest uppercase mb-2 block">{l.services}</span>
+                <div className="w-16 h-1 bg-pharaonic mx-auto rounded-full mb-2"></div>
+              </div>
+
+              <div className="relative group max-w-6xl mx-auto">
+                <button onClick={() => scrollSlider(isRtl ? 'right' : 'left', sliderRef)} className={`absolute ${isRtl?'-right-4 md:-right-6':'-left-4 md:-left-6'} top-1/2 -translate-y-1/2 z-20 bg-white p-3 rounded-full shadow-[0_5px_20px_rgba(0,0,0,0.15)] text-pharaonic hover:scale-110 hover:bg-pharaonic hover:text-white transition-all`}>
+                  {isRtl ? <ArrowRight size={24}/> : <ArrowLeft size={24}/>}
+                </button>
+                <button onClick={() => scrollSlider(isRtl ? 'left' : 'right', sliderRef)} className={`absolute ${isRtl?'-left-4 md:-left-6':'-right-4 md:-right-6'} top-1/2 -translate-y-1/2 z-20 bg-white p-3 rounded-full shadow-[0_5px_20px_rgba(0,0,0,0.15)] text-pharaonic hover:scale-110 hover:bg-pharaonic hover:text-white transition-all`}>
+                  {isRtl ? <ArrowLeft size={24}/> : <ArrowRight size={24}/>}
+                </button>
+
+                <div ref={sliderRef} className="flex overflow-x-auto pb-10 pt-4 hide-scroll-bar snap-x snap-mandatory gap-5 px-6">
+                  {SERVICES.map((service) => (
+                    <div 
+                      key={service.id} 
+                      onClick={() => handleServiceClick(service.id)}
+                      className="snap-center shrink-0 w-[200px] bg-[#FDFCFB] rounded-2xl p-5 border border-gray-100 shadow-2xl hover:border-pharaonic hover:-translate-y-2 transition-all duration-300 cursor-pointer flex flex-col justify-between"
+                    >
+                      <div>
+                        <div className="w-12 h-12 bg-pharaonic/10 rounded-xl flex items-center justify-center mb-4 text-pharaonic transition-colors">
+                          {service.icon}
+                        </div>
+                        <h3 className="text-lg font-black text-gray-900 mb-2 transition-colors">{service.title}</h3>
+                        <p className="text-gray-500 text-xs font-bold leading-relaxed line-clamp-3 mb-4">{service.desc}</p>
+                      </div>
+                      <div className="flex items-center text-pharaonic font-black text-xs mt-2 bg-pharaonic/5 p-2 rounded-lg justify-center">
+                        {l.readMore} <ArrowRight size={14} className={isRtl?"mr-1":"ml-1"} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* Global Vision & Mission */}
+          <VisionMissionSection l={l} isRtl={isRtl} />
+
+          {/* Reviews Section */}
+          <section id="reviews" className="py-16 bg-gray-50 border-y border-gray-200 overflow-hidden">
+            <div className="container mx-auto px-4">
+              <div className="text-center mb-10">
+                <span className="text-pharaonic font-black text-xs tracking-widest uppercase mb-2 block">{l.reviews}</span>
+                <h2 className="text-2xl md:text-4xl font-black text-gray-900 mb-4">{l.reviewsTitle}</h2>
+                <div className="w-16 h-1 bg-pharaonic mx-auto rounded-full"></div>
+              </div>
+
+              <div className="relative max-w-5xl mx-auto group">
+                <button onClick={() => scrollSlider(isRtl ? 'right' : 'left', reviewSliderRef)} className={`absolute ${isRtl?'-right-2 md:-right-6':'-left-2 md:-left-6'} top-1/2 -translate-y-1/2 z-20 bg-white p-3 rounded-full shadow-[0_5px_20px_rgba(0,0,0,0.15)] text-pharaonic hover:scale-110 hover:bg-pharaonic hover:text-white transition-all`}>
+                  {isRtl ? <ArrowRight size={24}/> : <ArrowLeft size={24}/>}
+                </button>
+                <button onClick={() => scrollSlider(isRtl ? 'left' : 'right', reviewSliderRef)} className={`absolute ${isRtl?'-left-2 md:-left-6':'-right-2 md:-right-6'} top-1/2 -translate-y-1/2 z-20 bg-white p-3 rounded-full shadow-[0_5px_20px_rgba(0,0,0,0.15)] text-pharaonic hover:scale-110 hover:bg-pharaonic hover:text-white transition-all`}>
+                  {isRtl ? <ArrowLeft size={24}/> : <ArrowRight size={24}/>}
+                </button>
+
+                <div ref={reviewSliderRef} className="flex overflow-x-auto pb-10 pt-4 hide-scroll-bar snap-x snap-mandatory gap-6 px-4">
+                  {REVIEWS.map((review, idx) => (
+                    <div key={idx} className="snap-center shrink-0 w-[280px] md:w-[350px] bg-white rounded-3xl p-6 shadow-2xl border border-gray-100 relative transition-transform hover:-translate-y-1">
+                      {/* Reduced Quote Icon Size */}
+                      <Quote className="absolute top-4 left-4 text-pharaonic/15" size={24} />
+                      <div className="flex text-pharaonic mb-4 relative z-10">
+                        {[...Array(5)].map((_, i) => <Star key={i} size={16} fill="currentColor" />)}
+                      </div>
+                      <p className="text-gray-600 font-bold mb-6 leading-relaxed relative z-10 text-sm">"{review.text}"</p>
+                      <div className="flex items-center relative z-10 border-t border-gray-50 pt-4">
+                        <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center text-lg font-black text-gray-400 ml-3">
+                          {review.name.charAt(0)}
+                        </div>
+                        <h4 className="font-black text-gray-900 text-sm">{review.name}</h4>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* Booking Section */}
+          <section className="py-12 bg-[#FDFCFB] relative">
+            <BookingSection />
+          </section>
+        </main>
+      ) : (
+        // ================= SERVICE DETAIL PAGE =================
+        <main className="bg-[#FDFCFB] animate-fade-in pb-16">
+          <div className="bg-gray-900 text-white pt-28 pb-20 relative overflow-hidden shadow-lg">
+            {/* Service Specific Image Background */}
+            <div className="absolute inset-0 bg-cover bg-center opacity-30 mix-blend-overlay" style={{backgroundImage: `url(${activeService.image})`}}></div>
+            <div className="absolute inset-0 bg-gradient-to-t from-gray-900 to-transparent"></div>
+            
+            <div className="container mx-auto px-4 relative z-10 text-center mt-12">
+              <div className="flex justify-center items-center mb-4">
+                <div className="w-14 h-14 bg-pharaonic rounded-2xl flex items-center justify-center mx-3 text-white shadow-2xl">
+                  {activeService.icon}
+                </div>
+                <h1 className="text-3xl md:text-5xl font-black text-white">{activeService.title}</h1>
+              </div>
+              
+              {/* Back Button positioned below title on the right (start) */}
+              <div className="flex justify-start max-w-3xl mx-auto mt-6">
+                <button onClick={handleBackHome} className="inline-flex items-center text-pharaonic hover:text-white transition font-bold text-sm bg-white/10 px-5 py-2.5 rounded-full backdrop-blur-md border border-white/20">
+                  <ArrowRight size={16} className={isRtl?"ml-2":"mr-2"} /> {l.back}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="container mx-auto px-4 py-10 max-w-3xl text-center">
+             <div className="bg-white p-8 rounded-3xl shadow-2xl border border-gray-100 mb-10 -mt-16 relative z-20">
+                <p className="text-gray-700 text-base md:text-xl leading-loose font-bold">
+                  "{activeService.desc}"
+                </p>
+             </div>
+             
+             {/* Global Vision & Mission inside service pages too */}
+             <div className="mb-10">
+               <VisionMissionSection l={l} isRtl={isRtl} />
+             </div>
+
+             <BookingSection defaultService={activeService.title} />
+          </div>
+        </main>
+      )}
+
+      {/* Social Media Section */}
+      <section className="py-10 bg-pharaonic text-white text-center">
+        <h3 className="text-xl md:text-2xl font-black mb-6">تابعنا على منصات السوشيال ميديا</h3>
+        <div className="flex justify-center space-x-6 space-x-reverse">
+          <a href="#" className="w-14 h-14 bg-white text-pharaonic rounded-full flex items-center justify-center shadow-lg hover:scale-110 hover:bg-gray-900 hover:text-white transition-all"><Facebook size={26}/></a>
+          <a href="#" className="w-14 h-14 bg-white text-pharaonic rounded-full flex items-center justify-center shadow-lg hover:scale-110 hover:bg-gray-900 hover:text-white transition-all"><Instagram size={26}/></a>
+          <a href="#" className="w-14 h-14 bg-white text-pharaonic rounded-full flex items-center justify-center shadow-lg hover:scale-110 hover:bg-gray-900 hover:text-white transition-all"><Youtube size={26}/></a>
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="bg-gray-900 text-white pt-10 pb-4 font-body relative z-20">
+        <div className="container mx-auto px-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-6 text-center md:text-start border-b border-gray-800 pb-8">
+            
+            <div>
+              <h1 className="text-2xl font-black text-white tracking-tight mb-0">NEW ERA</h1>
+              <p className="text-pharaonic text-[10px] font-black tracking-[0.3em] uppercase mb-3">DENTAL CENTER</p>
+              <p className="text-gray-400 text-xs leading-relaxed font-bold max-w-xs mx-auto md:mx-0">
+                خبرة و جودة عالمية لأكثر من 10 سنوات.
+              </p>
+            </div>
+
+            <div>
+              <h3 className="text-sm font-black mb-4 text-white border-b border-pharaonic/50 pb-2 inline-block">فروعنا</h3>
+              <ul className="space-y-2 text-xs text-gray-400 font-bold">
+                <li className="flex items-center justify-center md:justify-start">
+                  <MapPin size={14} className="text-pharaonic ml-2 shrink-0" />
+                  <span>الهرم: 37 برج الفاروق أمام محور كمال عامر.</span>
+                </li>
+                <li className="flex items-center justify-center md:justify-start">
+                  <MapPin size={14} className="text-pharaonic ml-2 shrink-0" />
+                  <span>حلوان: 44 برج الصيفي، أمام المترو.</span>
+                </li>
+                <li className="flex items-center justify-center md:justify-start">
+                  <MapPin size={14} className="text-pharaonic ml-2 shrink-0" />
+                  <span>الصف: الأخصاص، بجوار مجوهرات مكة.</span>
+                </li>
+              </ul>
+            </div>
+
+            <div>
+              <h3 className="text-sm font-black mb-4 text-white border-b border-pharaonic/50 pb-2 inline-block">تواصل معنا</h3>
+              <ul className="space-y-3 text-sm text-gray-300">
+                <li className="flex items-center justify-center md:justify-start font-sans font-black tracking-wider" dir="ltr">
+                  <Phone size={16} className="text-pharaonic mr-2 shrink-0" />
+                  011 215 93393
+                </li>
+                <li className="flex items-center justify-center md:justify-start font-sans font-black tracking-wider" dir="ltr">
+                  <Phone size={16} className="text-pharaonic mr-2 shrink-0" />
+                  010 333 17233
+                </li>
+              </ul>
+            </div>
+          </div>
+
+          <div className="flex flex-col items-center justify-center text-gray-400 text-xs font-bold space-y-1 mt-2">
+            <p>© 2026 New Era Dental Center. All rights reserved.</p>
+            <p>صُنع بكل <span className="text-pharaonic text-sm">♥</span> لابتسامتك</p>
+          </div>
+        </div>
+      </footer>
+    </div>
+  );
+};
+
+export default App;
+
+
+
+
