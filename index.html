@@ -159,6 +159,7 @@
                 vision: 'رؤيتنا', visionDesc: 'نكون دايماً رقم واحد في طب وتجميل الأسنان، ونوفرلك أحدث تكنولوجيا في العالم هنا في مصر عشان ابتسامتك تفضل منورة وصحتك في أمان.',
                 mission: 'رسالتنا', missionDesc: 'نعالج أسنانك صح من غير ألم، ونبني معاك ثقة تعيش سنين. بنهتم بتفاصيل حالتك عشان نطلع بنتيجة طبيعية 100% تعجبك وتريحك.',
                 whyUs: 'ليه تختارنا؟', whyUsDesc: 'أطباء استشاريين متخصصين، تعقيم فائق، وأجهزة متطورة تضمن لك تجربة علاجية سلسة بدون ألم.',
+                footerAbout: 'خبرة و جودة عالمية لأكثر من 10 سنوات.', branchesT: 'فروعنا', contactT: 'تواصل معنا', followUs: 'تابعنا على منصات السوشيال ميديا', hoursT: 'مواعيد العمل',
                 readMore: 'اقرأ المزيد', back: 'الرجوع للرئيسية', reviewsTitle: 'قصص نجاح وتجارب ملهمة', mapLocation: 'اللوكيشن',
                 branches: [
                     { id: 'b1', name: 'الهرم - العمرانية', address: 'شارع الثلاثيني، تقاطع شارع عثمان محرم، أعلى صيدلية العزبي.', mapLink: 'https://maps.google.com' }, 
@@ -177,6 +178,7 @@
                 vision: 'Our Vision', visionDesc: 'To be the leading dental and cosmetic center in Egypt, providing the worlds latest technologies.',
                 mission: 'Our Mission', missionDesc: 'To treat your teeth properly without pain, and build long-lasting trust. 100% natural result.',
                 whyUs: 'Why Choose Us?', whyUsDesc: 'Consultant doctors, superb sterilization, and advanced devices ensuring a painless experience.',
+                footerAbout: 'World-class quality and experience for over 10 years.', branchesT: 'Our Branches', contactT: 'Contact Us', followUs: 'Follow us on social media', hoursT: 'Working Hours',
                 readMore: 'Read More', back: 'Back to Home', reviewsTitle: 'Inspiring Success Stories', mapLocation: 'Location',
                 branches: [
                     { id: 'b1', name: 'Haram - Omraniya', address: 'El Thalatheny St., Intersection of Osman Moharam, above El Ezaby Pharmacy.', mapLink: 'https://maps.google.com' }, 
@@ -232,12 +234,19 @@
             services: SERVICES.map(({ icon, ...s }) => ({ ...s, gallery: [] })),
             heroZoom: 100, googleReviews: true, whatsapp: '201121593393',
             phones: ['011 215 93393', '010 333 17233'],
-            texts: { ar: {}, en: {} }
+            texts: { ar: {}, en: {} },
+            reviews: REVIEWS.map(r => ({ ...r, stars: 5 })),
+            socials: { facebook: 'https://www.facebook.com/share/19XfLQrD83/', instagram: 'https://www.instagram.com/invites/contact/?utm_source=ig_contact_invite&utm_medium=copy_link&utm_content=t2n9ivi', youtube: 'https://youtube.com/@neweradentalcenter?si=J5e3GA6amvjAZN0o', tiktok: 'https://www.tiktok.com/@neweradentalcenter?_r=1&_t=ZS-94Zj9UJ4yT1' },
+            show: {},
+            announce: { on: false, ar: '', en: '', link: '' },
+            hours: { ar: '', en: '' },
+            seo: { title: '', desc: '' }
         };
 
         const mergeCfg = (data) => {
             const c = { ...DEFAULT_CFG, ...(data || {}) };
-            ['heroImages', 'counters', 'gallery', 'phones', 'services'].forEach(k => { if (!Array.isArray(c[k])) c[k] = DEFAULT_CFG[k]; });
+            ['heroImages', 'counters', 'gallery', 'phones', 'services', 'reviews'].forEach(k => { if (!Array.isArray(c[k])) c[k] = DEFAULT_CFG[k]; });
+            ['socials', 'show', 'announce', 'hours', 'seo'].forEach(k => { c[k] = { ...DEFAULT_CFG[k], ...((c[k] && typeof c[k] === 'object') ? c[k] : {}) }; });
             c.services = c.services.filter(Boolean).map(sv => ({ ...sv, gallery: Array.isArray(sv.gallery) ? sv.gallery : [] }));
             c.texts = { ar: {}, en: {}, ...(c.texts || {}) };
             return c;
@@ -301,7 +310,7 @@
         };
 
         // --- Dashboard ---
-        const TEXT_FIELDS = [['heroTitle','عنوان الهيدر'],['heroSub','وصف الهيدر'],['heroSlogan','الشعار تحت الأرقام'],['startJourney','زر الحجز'],['aboutTitle','عنوان من نحن'],['aboutDesc','نص من نحن'],['vision','عنوان الرؤية'],['visionDesc','نص الرؤية'],['mission','عنوان الرسالة'],['missionDesc','نص الرسالة'],['whyUs','عنوان ليه تختارنا'],['whyUsDesc','نص ليه تختارنا'],['reviewsTitle','عنوان الآراء']];
+        const TEXT_FIELDS = [['heroTitle','عنوان الهيدر'],['heroSub','وصف الهيدر'],['heroSlogan','الشعار تحت الأرقام'],['startJourney','زر الحجز'],['aboutTitle','عنوان من نحن'],['aboutDesc','نص من نحن'],['vision','عنوان الرؤية'],['visionDesc','نص الرؤية'],['mission','عنوان الرسالة'],['missionDesc','نص الرسالة'],['whyUs','عنوان ليه تختارنا'],['whyUsDesc','نص ليه تختارنا'],['reviewsTitle','عنوان الآراء'],['footerAbout','نبذة الفوتر'],['followUs','نص السوشيال ميديا']];
 
         const SLOTS = {
             hero: { l: 'خلفية الهيدر', w: 1920, h: 800 },
@@ -415,103 +424,257 @@
             </div>
         );
 
+        // ===== لوحة تحكم الموقع =====
+        const ADMIN_TABS = [
+            ['overview', 'نظرة عامة', '📊'], ['hero', 'الهيدر', '🖼️'], ['counters', 'الأرقام', '🔢'], ['services', 'الخدمات', '🦷'],
+            ['gallery', 'المعرض', '📷'], ['reviews', 'آراء العملاء', '⭐'], ['texts', 'النصوص', '✏️'], ['sections', 'الأقسام والإعلان', '🧩'],
+            ['contact', 'التواصل', '📞'], ['seo', 'جوجل (SEO)', '🔎'], ['backup', 'نسخة احتياطية', '💾'], ['general', 'إعدادات', '⚙️']
+        ];
+        const SECTION_NAMES = { announce: 'شريط الإعلان', counters: 'الأرقام في الهيدر', about: 'من نحن', services: 'الخدمات', vision: 'الرؤية والرسالة', gallery: 'المعرض', reviews: 'آراء العملاء', booking: 'الحجز أونلاين', whatsapp: 'زرار واتساب العائم' };
+        const ownerOk = u => u && !u.isAnonymous && u.email && !u.email.endsWith('@neweraclinic.app');
+
         const Admin = ({ cfg }) => {
             const [user, setUser] = useState(undefined);
             const [d, setD] = useState(cfg);
-            const [tab, setTab] = useState('hero');
+            const [saved, setSaved] = useState(() => JSON.stringify(cfg));
+            const [tab, setTab] = useState('overview');
             const [msg, setMsg] = useState('');
+            const [saving, setSaving] = useState(false);
             const [err, setErr] = useState('');
+            const [openSvc, setOpenSvc] = useState(null);
             // لوحة الموقع لصاحبة الحساب بس (حسابات موظفين السيستم مش بتفتحها حتى لو على نفس الدومين)
-            useEffect(() => auth ? auth.onAuthStateChanged(u => setUser(u && !u.isAnonymous && u.email && !u.email.endsWith('@neweraclinic.app') ? u : null)) : setUser(null), []);
+            useEffect(() => auth ? auth.onAuthStateChanged(u => setUser(ownerOk(u) ? u : null)) : setUser(null), []);
+            const dirty = JSON.stringify(d) !== saved;
+            useEffect(() => {
+                const h = e => { if (dirty) { e.preventDefault(); e.returnValue = ''; } };
+                window.addEventListener('beforeunload', h); return () => window.removeEventListener('beforeunload', h);
+            }, [dirty]);
             const up = (k, v) => setD(p => ({ ...p, [k]: v }));
-            const upAt = (k, i, v) => up(k, d[k].map((x, j) => j === i ? v : x));
-            const setText = (lng, k, v) => up('texts', { ...d.texts, [lng]: { ...(d.texts[lng] || {}), [k]: v } });
-            const save = async () => { setMsg('...'); try { await db.collection('settings').doc('site').set(d); setMsg('تم الحفظ ✓'); } catch (e) { setMsg('فشل الحفظ: تأكد من صلاحيات Firestore'); } setTimeout(() => setMsg(''), 3500); };
-            const login = async (e) => { e.preventDefault(); setErr(''); try { await auth.signInWithEmailAndPassword(e.target.em.value, e.target.pw.value); } catch (x) { setErr('الإيميل أو الباسورد غلط'); } };
-            const sl = (lab, val, min, max, step, set) => <label className="block text-[11px] font-bold">{lab}: {val}<input type="range" min={min} max={max} step={step} value={typeof val === 'string' ? parseFloat(val) : val} onChange={e => set(+e.target.value)} className="w-full" /></label>;
-            const inp = "w-full border rounded-lg p-2 text-sm";
-            const card = "bg-white rounded-2xl p-4 shadow border border-gray-100 space-y-3";
+            const upObj = (k, kk, v) => setD(p => ({ ...p, [k]: { ...(p[k] || {}), [kk]: v } }));
+            const upAt = (k, i, v) => setD(p => ({ ...p, [k]: p[k].map((x, j) => j === i ? v : x) }));
+            const move = (k, i, dir) => setD(p => { const a = [...p[k]]; const j = i + dir; if (j < 0 || j >= a.length) return p; [a[i], a[j]] = [a[j], a[i]]; return { ...p, [k]: a }; });
+            const setText = (lng, k, v) => setD(p => ({ ...p, texts: { ...p.texts, [lng]: { ...(p.texts[lng] || {}), [k]: v } } }));
+            const save = async () => {
+                if (saving) return;
+                setSaving(true); setMsg('');
+                try {
+                    const out = { ...d, updatedAt: new Date().toISOString(), updatedBy: (user && user.email) || '' };
+                    await db.collection('settings').doc('site').set(out);
+                    setD(out); setSaved(JSON.stringify(out)); setMsg('تم الحفظ ✓ والتغييرات ظهرت على الموقع');
+                } catch (e) { setMsg('فشل الحفظ: ' + (e.code === 'permission-denied' ? 'الحساب ده مالوش صلاحية' : e.message)); }
+                setSaving(false); setTimeout(() => setMsg(''), 4000);
+            };
+            useEffect(() => {
+                const h = e => { if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); if (dirty) save(); } };
+                window.addEventListener('keydown', h); return () => window.removeEventListener('keydown', h);
+            });
+            const discard = () => { if (confirm('ترجعي لآخر نسخة محفوظة؟ التغييرات اللي متحفظتش هتضيع.')) setD(JSON.parse(saved)); };
+            const login = async (e) => { e.preventDefault(); setErr(''); try { await auth.signInWithEmailAndPassword(e.target.em.value.trim(), e.target.pw.value); } catch (x) { setErr(x.code === 'auth/too-many-requests' ? 'محاولات كتير — استني شوية' : 'الإيميل أو الباسورد غلط'); } };
+            const resetPw = async (e) => { const em = e.target.form.em.value.trim(); if (!em) { setErr('اكتبي الإيميل الأول'); return; } try { await auth.sendPasswordResetEmail(em); setErr('اتبعت لينك تغيير الباسورد على الإيميل ✓'); } catch (x) { setErr('مقدرناش نبعت اللينك: ' + x.message); } };
 
-            if (user === undefined) return <div className="p-10 text-center font-bold">...</div>;
+            const inp = "w-full border border-gray-200 rounded-xl p-2.5 text-sm bg-white focus:border-pharaonic outline-none";
+            const card = "bg-white rounded-2xl p-4 sm:p-5 shadow-sm border border-gray-100 space-y-3";
+            const H = ({ t, s }) => <div className="mb-1"><h2 className="text-lg font-black text-gray-900">{t}</h2>{s && <p className="text-xs text-gray-500 font-bold mt-0.5">{s}</p>}</div>;
+            const sl = (lab, val, min, max, step, set) => <label className="block text-[11px] font-bold text-gray-600">{lab}: {val}<input type="range" min={min} max={max} step={step} value={typeof val === 'string' ? parseFloat(val) : val} onChange={e => set(+e.target.value)} className="w-full accent-[#D4AF37]" /></label>;
+            const Toggle = ({ on, set, label, sub }) => <label className="flex items-center justify-between gap-3 py-2 cursor-pointer"><span><span className="block text-sm font-black text-gray-800">{label}</span>{sub && <span className="block text-[11px] text-gray-500 font-bold">{sub}</span>}</span><span onClick={e => { e.preventDefault(); set(!on); }} className={`relative w-11 h-6 rounded-full transition-colors shrink-0 ${on ? 'bg-pharaonic' : 'bg-gray-300'}`}><span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${on ? 'right-0.5' : 'right-[22px]'}`}></span></span></label>;
+            const OrderBtns = ({ k, i, n }) => <span className="flex gap-1"><button type="button" disabled={i === 0} onClick={() => move(k, i, -1)} className="w-7 h-7 rounded-lg bg-gray-100 text-xs disabled:opacity-30">▲</button><button type="button" disabled={i === n - 1} onClick={() => move(k, i, 1)} className="w-7 h-7 rounded-lg bg-gray-100 text-xs disabled:opacity-30">▼</button></span>;
+
+            if (user === undefined) return <div className="min-h-screen flex items-center justify-center font-bold text-gray-400">...</div>;
             if (!user) return (
                 <div dir="rtl" className="min-h-screen bg-gray-900 flex items-center justify-center p-4">
-                    <form onSubmit={login} className="bg-white rounded-3xl p-6 w-full max-w-sm space-y-3">
-                        <h1 className="text-2xl font-black text-center">لوحة التحكم</h1>
-                        <input name="em" type="email" required placeholder="الإيميل" dir="ltr" className={inp} />
-                        <input name="pw" type="password" required placeholder="الباسورد" dir="ltr" className={inp} />
-                        {err && <p className="text-red-500 text-sm font-bold">{err}</p>}
-                        <button className="w-full bg-pharaonic text-white font-black py-3 rounded-xl">دخول</button>
-                        <a href="#" className="block text-center text-sm text-gray-500">الرجوع للموقع</a>
+                    <form onSubmit={login} className="bg-white rounded-3xl p-7 w-full max-w-sm space-y-3 shadow-2xl">
+                        <div className="text-center mb-2"><h1 className="text-2xl font-black text-gray-900">NEW ERA</h1><p className="text-pharaonic text-[10px] font-black tracking-[0.26em]">DENTAL CENTER</p><p className="text-sm font-bold text-gray-500 mt-3">لوحة تحكم الموقع</p></div>
+                        <input name="em" type="email" required placeholder="الإيميل" dir="ltr" autoComplete="username" className={inp} />
+                        <input name="pw" type="password" required placeholder="الباسورد" dir="ltr" autoComplete="current-password" className={inp} />
+                        {err && <p className={`text-sm font-bold ${err.includes('✓') ? 'text-emerald-600' : 'text-red-500'}`}>{err}</p>}
+                        <button className="w-full bg-pharaonic text-white font-black py-3 rounded-xl hover:bg-[#B5952F]">دخول</button>
+                        <div className="flex justify-between text-xs font-bold"><button type="button" onClick={resetPw} className="text-gray-500 hover:text-pharaonic">نسيتي الباسورد؟</button><a href="#" className="text-gray-500 hover:text-pharaonic">الرجوع للموقع</a></div>
                     </form>
                 </div>
             );
 
-            const TABS = [['hero', 'الهيدر'], ['counters', 'الأرقام'], ['services', 'الخدمات'], ['gallery', 'المعرض'], ['texts', 'النصوص'], ['general', 'عام']];
+            const siteUrl = location.href.split('#')[0];
+            const warnings = [
+                !d.heroImages.filter(Boolean).length && ['الهيدر من غير صورة خلفية', 'hero'],
+                d.services.some(s => !s.image) && ['فيه خدمات من غير صورة', 'services'],
+                d.services.some(s => !s.titleEn) && ['فيه خدمات من غير اسم إنجليزي (بتظهر بالعربي في النسخة الإنجليزي)', 'services'],
+                !d.whatsapp && ['رقم الواتساب فاضي', 'contact'],
+                !(d.seo && d.seo.desc) && ['وصف الموقع لجوجل فاضي', 'seo']
+            ].filter(Boolean);
+
             return (
-                <div dir="rtl" className="min-h-screen bg-gray-100 pb-28">
-                    <div className="bg-gray-900 text-white p-4 flex items-center justify-between sticky top-0 z-30">
-                        <h1 className="font-black">لوحة التحكم</h1>
-                        <div className="flex gap-3 text-sm font-bold"><a href="#" className="text-pharaonic">الموقع</a><button onClick={() => auth.signOut()}>خروج</button></div>
+                <div dir="rtl" className="min-h-screen bg-gray-50 pb-28">
+                    <header className="bg-gray-900 text-white sticky top-0 z-30 shadow-lg">
+                        <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-3 min-w-0"><span className="font-black tracking-tight">NEW ERA</span><span className="text-xs text-gray-400 font-bold hidden sm:inline">لوحة تحكم الموقع</span></div>
+                            <div className="flex items-center gap-2 text-xs font-bold">
+                                <a href={siteUrl} target="_blank" rel="noreferrer" className="bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-lg">معاينة الموقع ↗</a>
+                                <span className="hidden md:inline text-gray-400" dir="ltr">{user.email}</span>
+                                <button onClick={() => { if (!dirty || confirm('فيه تغييرات مش محفوظة. تخرجي برضه؟')) auth.signOut(); }} className="text-red-300 hover:text-red-200 px-2">خروج</button>
+                            </div>
+                        </div>
+                    </header>
+                    <div className="max-w-6xl mx-auto md:flex md:gap-5 md:px-4 md:pt-5">
+                        <nav className="md:w-56 md:shrink-0">
+                            <div className="flex md:flex-col gap-1.5 p-3 md:p-0 overflow-x-auto hide-scroll-bar md:sticky md:top-20">
+                                {ADMIN_TABS.map(([k, n, ic]) => <button key={k} onClick={() => setTab(k)} className={`flex items-center gap-2 px-3.5 py-2 md:py-2.5 rounded-xl font-black text-sm whitespace-nowrap text-right transition-colors ${tab === k ? 'bg-pharaonic text-white shadow' : 'bg-white md:bg-transparent text-gray-600 hover:bg-white'}`}><span className="text-base">{ic}</span>{n}</button>)}
+                            </div>
+                        </nav>
+                        <main className="flex-1 min-w-0 px-3 md:px-0 space-y-3">
+                            {tab === 'overview' && <AdminOverview d={d} warnings={warnings} go={setTab} />}
+
+                            {tab === 'hero' && <><H t="الهيدر" s="أول حاجة الزائر بيشوفها. لو حطيتي أكتر من صورة بتتبدل لوحدها كل 5 ثواني." />
+                                <div className={card}><p className="font-black text-sm">صور الخلفية</p><ImgList slot={SLOTS.hero} list={d.heroImages} onChange={v => up('heroImages', v)} /></div>
+                                <div className={card}><p className="font-black text-sm">ضبط الصورة</p>
+                                    <div className="relative h-36 rounded-xl overflow-hidden bg-gray-900"><HeroBG imgs={d.heroImages.filter(Boolean).slice(0, 1)} x={d.heroX} y={d.heroY} dim={d.heroDim} zoom={d.heroZoom || 100} /><div className="absolute inset-0 flex items-center justify-center text-white font-black text-lg drop-shadow">{(d.texts.ar || {}).heroTitle || t.ar.heroTitle}</div></div>
+                                    <div className="grid sm:grid-cols-2 gap-x-4">{sl('وضوح الصورة', d.heroDim + '%', 20, 100, 1, v => up('heroDim', v))}{sl('تكبير', (d.heroZoom || 100) + '%', 100, 200, 5, v => up('heroZoom', v))}{sl('أفقي', d.heroX + '%', 0, 100, 1, v => up('heroX', v))}{sl('رأسي', d.heroY + '%', 0, 100, 1, v => up('heroY', v))}</div>
+                                </div></>}
+
+                            {tab === 'counters' && <><H t="الأرقام" s="العدّاد اللي في الهيدر (زي: +10,000 حالة)." />
+                                {d.counters.map((c, i) => <div key={i} className={card}>
+                                    <div className="flex items-center justify-between"><span className="font-black text-pharaonic" dir="ltr">+{Number(c.n || 0).toLocaleString('en-US')}</span><OrderBtns k="counters" i={i} n={d.counters.length} /></div>
+                                    <div className="grid sm:grid-cols-3 gap-2"><input type="number" value={c.n} onChange={e => upAt('counters', i, { ...c, n: +e.target.value })} className={inp} placeholder="الرقم" />
+                                        <input value={c.ar} onChange={e => upAt('counters', i, { ...c, ar: e.target.value })} className={inp} placeholder="العنوان بالعربي" />
+                                        <input value={c.en} onChange={e => upAt('counters', i, { ...c, en: e.target.value })} className={inp} dir="ltr" placeholder="English label" /></div>
+                                    <button onClick={() => up('counters', d.counters.filter((_, j) => j !== i))} className="text-red-500 text-xs font-black">حذف</button>
+                                </div>)}<button onClick={() => up('counters', [...d.counters, { n: 100, ar: '', en: '' }])} className="font-black text-pharaonic text-sm">+ إضافة رقم</button></>}
+
+                            {tab === 'services' && <><H t="الخدمات" s={d.services.length + ' خدمة • دوسي على الخدمة عشان تفتحيها'} />
+                                {d.services.map((s, i) => { const open = openSvc === s.id; return <div key={s.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                                    <div className="flex items-center gap-3 p-3 cursor-pointer hover:bg-gray-50" onClick={() => setOpenSvc(open ? null : s.id)}>
+                                        <img src={s.image || undefined} className="w-12 h-12 rounded-xl object-cover bg-gray-200 shrink-0" />
+                                        <div className="min-w-0 flex-1"><p className="font-black text-sm text-gray-900 truncate">{s.title || 'خدمة بدون اسم'}</p><p className="text-[11px] text-gray-400 font-bold truncate" dir="ltr">{s.titleEn || '— no English title'}</p></div>
+                                        {s.hidden && <span className="text-[10px] font-black bg-gray-100 text-gray-500 px-2 py-1 rounded-lg">مخفية</span>}
+                                        <span onClick={e => e.stopPropagation()}><OrderBtns k="services" i={i} n={d.services.length} /></span>
+                                        <span className="text-gray-400 text-xs">{open ? '▲' : '▼'}</span>
+                                    </div>
+                                    {open && <div className="p-4 pt-1 space-y-3 border-t border-gray-100">
+                                        <div className="grid sm:grid-cols-2 gap-2"><input value={s.title} onChange={e => upAt('services', i, { ...s, title: e.target.value })} className={inp + ' font-black'} placeholder="اسم الخدمة" />
+                                            <input value={s.titleEn || ''} onChange={e => upAt('services', i, { ...s, titleEn: e.target.value })} className={inp + ' font-black'} dir="ltr" placeholder="Service name (English)" /></div>
+                                        <textarea value={s.desc} rows="3" onChange={e => upAt('services', i, { ...s, desc: e.target.value })} className={inp} placeholder="الوصف" />
+                                        <textarea value={s.descEn || ''} rows="3" dir="ltr" onChange={e => upAt('services', i, { ...s, descEn: e.target.value })} className={inp} placeholder="Description (English)" />
+                                        <p className="text-xs font-black">الصورة الرئيسية</p>
+                                        <ImgField slot={SLOTS.svc} value={s.image} onChange={v => upAt('services', i, { ...s, image: v })} />
+                                        <div className="grid grid-cols-3 gap-2">{sl('تكبير', s.zoom || 1, 1, 2.5, 0.05, v => upAt('services', i, { ...s, zoom: v }))}{sl('أفقي', s.x ?? 50, 0, 100, 1, v => upAt('services', i, { ...s, x: v }))}{sl('رأسي', s.y ?? 50, 0, 100, 1, v => upAt('services', i, { ...s, y: v }))}</div>
+                                        <p className="text-xs font-black">صور إضافية في صفحة الخدمة</p>
+                                        <ImgList slot={SLOTS.svcx} list={s.gallery || []} onChange={v => upAt('services', i, { ...s, gallery: v })} />
+                                        <div className="flex items-center justify-between border-t border-gray-100 pt-2">
+                                            <Toggle on={!s.hidden} set={v => upAt('services', i, { ...s, hidden: !v })} label="ظاهرة على الموقع" />
+                                            <button className="text-red-500 text-xs font-black" onClick={() => confirm('حذف الخدمة نهائياً؟') && up('services', d.services.filter((_, j) => j !== i))}>حذف الخدمة</button>
+                                        </div>
+                                    </div>}
+                                </div>; })}
+                                <button onClick={() => { const id = 's' + Date.now(); up('services', [...d.services, { id, title: 'خدمة جديدة', titleEn: '', desc: '', descEn: '', image: '', gallery: [] }]); setOpenSvc(id); }} className="font-black text-pharaonic text-sm">+ إضافة خدمة</button></>}
+
+                            {tab === 'gallery' && <><H t="المعرض" s="صور المركز اللي بتتحرك لوحدها في الصفحة الرئيسية." />
+                                <div className={card}><div className="grid sm:grid-cols-2 gap-2"><input value={d.galleryTitle} onChange={e => up('galleryTitle', e.target.value)} className={inp + ' font-black'} placeholder="عنوان المعرض" /><input value={d.galleryTitleEn || ''} onChange={e => up('galleryTitleEn', e.target.value)} className={inp + ' font-black'} dir="ltr" placeholder="Gallery title (English)" /></div>
+                                    <ImgList slot={SLOTS.gal} list={d.gallery} onChange={v => up('gallery', v)} /></div></>}
+
+                            {tab === 'reviews' && <><H t="آراء العملاء" s={d.reviews.filter(r => !r.hidden).length + ' رأي ظاهر من ' + d.reviews.length} />
+                                <div className={card}><Toggle on={d.googleReviews !== false} set={v => up('googleReviews', v)} label="علامة Google على الكروت" sub="شغّليها بس لو الآراء دي فعلاً من صفحتكم على جوجل" /></div>
+                                {d.reviews.map((r, i) => <div key={i} className={card + (r.hidden ? ' opacity-60' : '')}>
+                                    <div className="flex items-center gap-2"><input value={r.name} onChange={e => upAt('reviews', i, { ...r, name: e.target.value })} className={inp + ' font-black'} placeholder="اسم العميل" /><OrderBtns k="reviews" i={i} n={d.reviews.length} /></div>
+                                    <textarea value={r.text} rows="2" onChange={e => upAt('reviews', i, { ...r, text: e.target.value })} className={inp} placeholder="الرأي" />
+                                    <div className="flex items-center justify-between flex-wrap gap-2">
+                                        <span className="flex gap-0.5" dir="ltr">{[1, 2, 3, 4, 5].map(n => <button key={n} type="button" onClick={() => upAt('reviews', i, { ...r, stars: n })} className={`text-xl leading-none ${n <= (r.stars || 5) ? 'text-[#FBBC04]' : 'text-gray-300'}`}>★</button>)}</span>
+                                        <span className="flex items-center gap-3"><button onClick={() => upAt('reviews', i, { ...r, hidden: !r.hidden })} className="text-xs font-black text-gray-600">{r.hidden ? 'إظهار' : 'إخفاء'}</button>
+                                            <button onClick={() => confirm('حذف الرأي؟') && up('reviews', d.reviews.filter((_, j) => j !== i))} className="text-red-500 text-xs font-black">حذف</button></span>
+                                    </div>
+                                </div>)}
+                                <button onClick={() => up('reviews', [{ name: '', text: '', stars: 5 }, ...d.reviews])} className="font-black text-pharaonic text-sm">+ إضافة رأي</button></>}
+
+                            {tab === 'texts' && <><H t="النصوص" s="كل نص بالعربي والإنجليزي. سيبي الخانة زي ما هي لو مش عايزة تغيّريها." />
+                                {TEXT_FIELDS.map(([k, n]) => <div key={k} className={card}>
+                                    <div className="flex items-center justify-between"><p className="font-black text-sm">{n}</p>{(((d.texts.ar || {})[k] ?? null) !== null || ((d.texts.en || {})[k] ?? null) !== null) && <button onClick={() => setD(p => { const tx = { ar: { ...p.texts.ar }, en: { ...p.texts.en } }; delete tx.ar[k]; delete tx.en[k]; return { ...p, texts: tx }; })} className="text-[11px] font-bold text-gray-400 hover:text-pharaonic">رجوع للنص الأصلي</button>}</div>
+                                    <div className="grid md:grid-cols-2 gap-2">{['ar', 'en'].map(lng => <textarea key={lng} rows="2" dir={lng === 'ar' ? 'rtl' : 'ltr'} value={(d.texts[lng] || {})[k] ?? t[lng][k] ?? ''} onChange={e => setText(lng, k, e.target.value)} className={inp} />)}</div>
+                                </div>)}</>}
+
+                            {tab === 'sections' && <><H t="الأقسام والإعلان" s="اخفي أو اظهري أي قسم من غير ما تمسحي محتواه." />
+                                <div className={card}><p className="font-black text-sm">شريط الإعلان (عروض / مواعيد خاصة)</p>
+                                    <Toggle on={!!d.announce.on} set={v => upObj('announce', 'on', v)} label="إظهار الشريط فوق الموقع" />
+                                    <div className="grid md:grid-cols-2 gap-2"><input value={d.announce.ar || ''} onChange={e => upObj('announce', 'ar', e.target.value)} className={inp} placeholder="مثال: خصم 20% على التبييض لحد آخر الشهر" /><input value={d.announce.en || ''} dir="ltr" onChange={e => upObj('announce', 'en', e.target.value)} className={inp} placeholder="English text (optional)" /></div>
+                                    <input value={d.announce.link || ''} dir="ltr" onChange={e => upObj('announce', 'link', e.target.value)} className={inp} placeholder="رابط (اختياري) — لو فاضي بيودي على الحجز" />
+                                    {d.announce.on && (d.announce.ar || d.announce.en) && <div className="bg-pharaonic text-white text-center text-sm font-black py-2 rounded-lg">{d.announce.ar || d.announce.en}</div>}
+                                </div>
+                                <div className={card + ' divide-y divide-gray-100'}>{Object.entries(SECTION_NAMES).filter(([k]) => k !== 'announce').map(([k, n]) => <Toggle key={k} on={d.show[k] !== false} set={v => upObj('show', k, v)} label={n} />)}</div></>}
+
+                            {tab === 'contact' && <><H t="التواصل" s="الأرقام والواتساب والسوشيال ومواعيد العمل." />
+                                <div className={card}><p className="font-black text-sm">أرقام التليفون (الفوتر)</p>
+                                    {d.phones.map((p, i) => <div key={i} className="flex gap-2"><input value={p} dir="ltr" onChange={e => upAt('phones', i, e.target.value)} className={inp} /><button onClick={() => up('phones', d.phones.filter((_, j) => j !== i))} className="text-red-500 font-black px-2">✕</button></div>)}
+                                    <button onClick={() => up('phones', [...d.phones, ''])} className="text-sm font-black text-pharaonic">+ إضافة رقم</button></div>
+                                <div className={card}><p className="font-black text-sm">رقم واتساب (بالكود الدولي، مثال 201121593393)</p>
+                                    <input value={d.whatsapp} dir="ltr" onChange={e => up('whatsapp', e.target.value.replace(/[^\d]/g, ''))} className={inp} />
+                                    {d.whatsapp && <a href={'https://wa.me/' + d.whatsapp} target="_blank" rel="noreferrer" className="text-xs font-black text-green-600">جرّبي الرقم ↗</a>}</div>
+                                <div className={card}><p className="font-black text-sm">مواعيد العمل (بتظهر في الفوتر)</p>
+                                    <div className="grid md:grid-cols-2 gap-2"><input value={d.hours.ar || ''} onChange={e => upObj('hours', 'ar', e.target.value)} className={inp} placeholder="يومياً من 4 العصر لـ 10 بالليل" /><input value={d.hours.en || ''} dir="ltr" onChange={e => upObj('hours', 'en', e.target.value)} className={inp} placeholder="Daily 4 PM – 10 PM" /></div></div>
+                                <div className={card}><p className="font-black text-sm">روابط السوشيال ميديا (اللي فاضي مش بيظهر)</p>
+                                    {[['facebook', 'فيسبوك'], ['instagram', 'إنستجرام'], ['youtube', 'يوتيوب'], ['tiktok', 'تيك توك']].map(([k, n]) => <label key={k} className="block text-xs font-bold text-gray-600">{n}<input value={d.socials[k] || ''} dir="ltr" onChange={e => upObj('socials', k, e.target.value.trim())} className={inp + ' mt-1'} placeholder="https://..." /></label>)}</div>
+                                <p className="text-[11px] text-gray-500 font-bold px-1">عناوين الفروع ولينكات الخريطة بتتعدل من السيستم (الإعدادات ← الفروع)، وبتظهر هنا تلقائي.</p></>}
+
+                            {tab === 'seo' && <><H t="الظهور على جوجل" s="العنوان والوصف اللي بيظهروا في نتايج البحث ولما حد يشارك اللينك." />
+                                <div className={card}>
+                                    <label className="block text-xs font-bold text-gray-600">عنوان الموقع <span className="text-gray-400">({(d.seo.title || '').length}/60)</span><input value={d.seo.title || ''} onChange={e => upObj('seo', 'title', e.target.value)} className={inp + ' mt-1'} /></label>
+                                    <label className="block text-xs font-bold text-gray-600">وصف الموقع <span className={(d.seo.desc || '').length > 160 ? 'text-red-500' : 'text-gray-400'}>({(d.seo.desc || '').length}/160)</span><textarea rows="3" value={d.seo.desc || ''} onChange={e => upObj('seo', 'desc', e.target.value)} className={inp + ' mt-1'} placeholder="مركز نيو إيرا لطب وتجميل الأسنان — زراعة، تقويم، ابتسامة هوليود… فروع الهرم وحلوان والصف. احجز أونلاين." /></label>
+                                    <div className="border border-gray-200 rounded-xl p-3 bg-gray-50"><p className="text-[11px] text-gray-400 font-bold mb-1">شكلها على جوجل تقريباً:</p><p className="text-[#1a0dab] text-base font-bold truncate">{d.seo.title || document.title}</p><p className="text-[#006621] text-xs truncate" dir="ltr">{siteUrl}</p><p className="text-gray-600 text-xs line-clamp-2">{d.seo.desc || '—'}</p></div>
+                                </div></>}
+
+                            {tab === 'backup' && <><H t="نسخة احتياطية" s="نزّلي نسخة من كل إعدادات الموقع على جهازك قبل أي تعديل كبير." />
+                                <div className={card}>
+                                    <button onClick={() => { const b = new Blob([JSON.stringify(d, null, 2)], { type: 'application/json' }); const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = 'new-era-site-' + new Date().toLocaleDateString('en-CA') + '.json'; a.click(); }} className="w-full bg-gray-900 text-white font-black py-3 rounded-xl">⬇ تنزيل نسخة احتياطية</button>
+                                    <label className="block w-full text-center bg-gray-100 font-black py-3 rounded-xl cursor-pointer">⬆ استرجاع من نسخة<input type="file" accept="application/json" hidden onChange={e => { const f = e.target.files[0]; e.target.value = ''; if (!f) return; f.text().then(x => { try { const j = JSON.parse(x); if (!j || !Array.isArray(j.services)) throw 0; setD(mergeCfg(j)); alert('اتحمّلت النسخة. راجعيها ودوسي "حفظ" عشان تنزل على الموقع.'); } catch (z) { alert('الملف ده مش نسخة احتياطية صحيحة'); } }); }} /></label>
+                                    <button onClick={() => confirm('ترجعي كل إعدادات الموقع للأصل؟ (مش هيتحفظ غير لما تدوسي حفظ)') && setD(mergeCfg({}))} className="w-full text-red-500 font-black py-2 text-sm">رجوع للإعدادات الأصلية</button>
+                                    {d.updatedAt && <p className="text-[11px] text-gray-400 font-bold text-center">آخر حفظ: {new Date(d.updatedAt).toLocaleString('ar-EG')}</p>}
+                                </div></>}
+
+                            {tab === 'general' && <><H t="إعدادات" />
+                                <div className={card}><p className="font-black text-sm">مفتاح رفع الصور (ImgBB) — اختياري</p><p className="text-[11px] text-gray-500 font-bold">لو Firebase Storage مش متفعّل، الصور بتترفع على ImgBB المجاني. المفتاح بيتحفظ على الجهاز ده بس.</p>
+                                    <input defaultValue={localStorage.getItem('imgbbKey') || ''} dir="ltr" onChange={e => localStorage.setItem('imgbbKey', e.target.value.trim())} className={inp} /></div>
+                                <div className={card}><p className="font-black text-sm">باسورد اللوحة</p><button onClick={() => auth.sendPasswordResetEmail(user.email).then(() => alert('اتبعت لينك تغيير الباسورد على ' + user.email)).catch(e => alert(e.message))} className="bg-gray-100 font-black text-sm px-4 py-2 rounded-xl">ابعتيلي لينك تغيير الباسورد</button></div></>}
+                        </main>
                     </div>
-                    <div className="flex gap-2 p-3 overflow-x-auto hide-scroll-bar">{TABS.map(([k, n]) => <button key={k} onClick={() => setTab(k)} className={`px-4 py-2 rounded-full font-black text-sm whitespace-nowrap ${tab === k ? 'bg-pharaonic text-white' : 'bg-white text-gray-700'}`}>{n}</button>)}</div>
-                    <div className="max-w-2xl mx-auto px-3 space-y-3">
-                        {tab === 'hero' && <div className={card}>
-                            <p className="font-black">صور خلفية الهيدر (لو أكتر من صورة بتتبدل لوحدها)</p>
-                            <ImgList slot={SLOTS.hero} list={d.heroImages} onChange={v => up('heroImages', v)} />
-                            <label className="block text-sm font-bold">وضوح الصورة: {d.heroDim}%<input type="range" min="20" max="100" value={d.heroDim} onChange={e => up('heroDim', +e.target.value)} className="w-full" /></label>
-                            <label className="block text-sm font-bold">موضع الصورة أفقي: {d.heroX}%<input type="range" min="0" max="100" value={d.heroX} onChange={e => up('heroX', +e.target.value)} className="w-full" /></label>
-                            <label className="block text-sm font-bold">موضع الصورة رأسي: {d.heroY}%<input type="range" min="0" max="100" value={d.heroY} onChange={e => up('heroY', +e.target.value)} className="w-full" /></label>
-                            {sl('تكبير الصورة', (d.heroZoom || 100) + '%', 100, 200, 5, v => up('heroZoom', v))}
-                        </div>}
-                        {tab === 'counters' && <div className="space-y-3">{d.counters.map((c, i) => <div key={i} className={card}>
-                            <input type="number" value={c.n} onChange={e => upAt('counters', i, { ...c, n: +e.target.value })} className={inp} placeholder="الرقم" />
-                            <input value={c.ar} onChange={e => upAt('counters', i, { ...c, ar: e.target.value })} className={inp} placeholder="العنوان بالعربي" />
-                            <input value={c.en} onChange={e => upAt('counters', i, { ...c, en: e.target.value })} className={inp} dir="ltr" placeholder="English label" />
-                            <button onClick={() => up('counters', d.counters.filter((_, j) => j !== i))} className="text-red-500 text-sm font-black">حذف</button>
-                        </div>)}<button onClick={() => up('counters', [...d.counters, { n: 100, ar: '', en: '' }])} className="font-black text-pharaonic">+ إضافة رقم</button></div>}
-                        {tab === 'services' && <div className="space-y-3">{d.services.map((s, i) => <div key={s.id} className={card}>
-                            <input value={s.title} onChange={e => upAt('services', i, { ...s, title: e.target.value })} className={inp + ' font-black'} placeholder="اسم الخدمة" />
-                            <textarea value={s.desc} rows="3" onChange={e => upAt('services', i, { ...s, desc: e.target.value })} className={inp} placeholder="الوصف" />
-                            <p className="text-xs font-black">الصورة الرئيسية</p>
-                            <ImgField slot={SLOTS.svc} value={s.image} onChange={v => upAt('services', i, { ...s, image: v })} />
-                            <div className="grid grid-cols-3 gap-2">{sl('تكبير', s.zoom || 1, 1, 2.5, 0.05, v => upAt('services', i, { ...s, zoom: v }))}{sl('أفقي', s.x ?? 50, 0, 100, 1, v => upAt('services', i, { ...s, x: v }))}{sl('رأسي', s.y ?? 50, 0, 100, 1, v => upAt('services', i, { ...s, y: v }))}</div>
-                            <p className="text-xs font-black">صور إضافية تظهر في صفحة الخدمة</p>
-                            <ImgList slot={SLOTS.svcx} list={s.gallery || []} onChange={v => upAt('services', i, { ...s, gallery: v })} />
-                            <div className="flex gap-4 text-sm font-black">
-                                <button disabled={i === 0} onClick={() => { const a = [...d.services];[a[i - 1], a[i]] = [a[i], a[i - 1]]; up('services', a); }}>▲ فوق</button>
-                                <button disabled={i === d.services.length - 1} onClick={() => { const a = [...d.services];[a[i + 1], a[i]] = [a[i], a[i + 1]]; up('services', a); }}>▼ تحت</button>
-                                <button className="text-red-500 mr-auto" onClick={() => confirm('حذف الخدمة؟') && up('services', d.services.filter((_, j) => j !== i))}>حذف</button>
-                            </div>
-                        </div>)}<button onClick={() => up('services', [...d.services, { id: 's' + Date.now(), title: 'خدمة جديدة', desc: '', image: '', gallery: [] }])} className="font-black text-pharaonic">+ إضافة خدمة</button></div>}
-                        {tab === 'gallery' && <div className={card}>
-                            <input value={d.galleryTitle} onChange={e => up('galleryTitle', e.target.value)} className={inp + ' font-black'} placeholder="عنوان المعرض" />
-                            <ImgList slot={SLOTS.gal} list={d.gallery} onChange={v => up('gallery', v)} />
-                        </div>}
-                        {tab === 'general' && <div className="space-y-3">
-                            <div className={card}>
-                                <p className="font-black">أرقام التليفونات (الفوتر)</p>
-                                {d.phones.map((p, i) => <div key={i} className="flex gap-2"><input value={p} dir="ltr" onChange={e => upAt('phones', i, e.target.value)} className={inp} /><button onClick={() => up('phones', d.phones.filter((_, j) => j !== i))} className="text-red-500 font-black">✕</button></div>)}
-                                <button onClick={() => up('phones', [...d.phones, ''])} className="text-sm font-black text-pharaonic">+ إضافة رقم</button>
-                                <p className="font-black text-sm pt-2">رقم واتساب (بالكود الدولي، مثال 201121593393)</p>
-                                <input value={d.whatsapp} dir="ltr" onChange={e => up('whatsapp', e.target.value)} className={inp} />
-                            </div>
-                            <div className={card}><label className="flex items-center gap-2 font-black text-sm"><input type="checkbox" checked={d.googleReviews !== false} onChange={e => up('googleReviews', e.target.checked)} />إظهار علامة Google على كروت الآراء</label></div>
-                            <div className={card}>
-                                <p className="font-black text-sm">مفتاح رفع الصور (ImgBB) — اختياري، بيتحفظ على الجهاز ده بس</p>
-                                <input defaultValue={localStorage.getItem('imgbbKey') || ''} dir="ltr" onChange={e => localStorage.setItem('imgbbKey', e.target.value.trim())} className={inp} />
-                            </div>
-                        </div>}
-                        {tab === 'texts' && <div className="space-y-3">{TEXT_FIELDS.map(([k, n]) => <div key={k} className={card}>
-                            <p className="font-black text-sm">{n}</p>
-                            {['ar', 'en'].map(lng => <textarea key={lng} rows="2" dir={lng === 'ar' ? 'rtl' : 'ltr'} value={(d.texts[lng] || {})[k] ?? t[lng][k]} onChange={e => setText(lng, k, e.target.value)} className={inp} />)}
-                        </div>)}</div>}
-                    </div>
-                    <div className="fixed bottom-0 inset-x-0 bg-white border-t p-3 flex items-center gap-3 z-40">
-                        <button onClick={save} className="flex-1 bg-pharaonic text-white font-black py-3 rounded-xl">حفظ التغييرات</button>
-                        <span className="text-sm font-bold">{msg}</span>
+                    <div className={`fixed bottom-0 inset-x-0 border-t p-3 z-40 transition-colors ${dirty ? 'bg-amber-50 border-amber-200' : 'bg-white'}`}>
+                        <div className="max-w-6xl mx-auto flex items-center gap-3">
+                            <button onClick={save} disabled={!dirty || saving} className="flex-1 md:flex-none md:px-10 bg-pharaonic text-white font-black py-3 rounded-xl disabled:opacity-40">{saving ? 'جاري الحفظ...' : 'حفظ التغييرات'}</button>
+                            {dirty && <button onClick={discard} className="text-sm font-black text-gray-600 px-2">تراجع</button>}
+                            <span className={`text-xs font-bold ${msg.startsWith('فشل') ? 'text-red-600' : msg ? 'text-emerald-600' : 'text-amber-700'}`}>{msg || (dirty ? 'فيه تغييرات مش محفوظة' : '')}</span>
+                        </div>
                     </div>
                 </div>
             );
+        };
+
+        // نظرة عامة: حجوزات الموقع + تنبيهات
+        const AdminOverview = ({ d, warnings, go }) => {
+            const [apps, setApps] = useState(null);
+            useEffect(() => {
+                if (!db) return;
+                const from = new Date(); from.setDate(from.getDate() - 30);
+                return db.collection('appointments').where('date', '>=', from.toLocaleDateString('en-CA')).onSnapshot(
+                    s => setApps(s.docs.map(x => ({ id: x.id, ...x.data() })).filter(a => a.source === 'online')), () => setApps([]));
+            }, []);
+            const today = new Date().toLocaleDateString('en-CA'), wk = (() => { const x = new Date(); x.setDate(x.getDate() - 6); return x.toLocaleDateString('en-CA'); })();
+            const made = a => (a.createdAt || '').slice(0, 10);
+            const list = (apps || []).slice().sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+            const Stat = ({ l, v, s }) => <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100"><p className="text-[11px] font-black text-gray-400">{l}</p><p className="text-2xl font-black text-gray-900 mt-1">{v}</p>{s && <p className="text-[11px] font-bold text-gray-500">{s}</p>}</div>;
+            return <>
+                <div className="mb-1"><h2 className="text-lg font-black text-gray-900">نظرة عامة</h2><p className="text-xs text-gray-500 font-bold">الحجوزات اللي جت من الموقع وصفحة الحجز (آخر 30 يوم)</p></div>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <Stat l="حجوزات اتعملت النهاردة" v={apps ? list.filter(a => made(a) === today).length : '…'} />
+                    <Stat l="آخر 7 أيام" v={apps ? list.filter(a => made(a) >= wk).length : '…'} />
+                    <Stat l="آخر 30 يوم" v={apps ? list.length : '…'} s={apps && list.length ? Math.round(list.filter(a => a.status === 'arrived' || a.status === 'done').length / list.length * 100) + '% حضروا' : ''} />
+                    <Stat l="خدمات ظاهرة" v={d.services.filter(s => !s.hidden).length} s={d.reviews.filter(r => !r.hidden).length + ' رأي عميل'} />
+                </div>
+                {warnings.length > 0 && <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 space-y-2"><p className="font-black text-sm text-amber-800">محتاج تكمّليه</p>{warnings.map(([w, k], i) => <button key={i} onClick={() => go(k)} className="block w-full text-right text-xs font-bold text-amber-800 hover:underline">• {w} ←</button>)}</div>}
+                <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+                    <p className="font-black text-sm mb-3">آخر الحجوزات أونلاين</p>
+                    {!apps ? <p className="text-xs text-gray-400 font-bold">...</p> : list.length === 0 ? <p className="text-xs text-gray-400 font-bold py-4 text-center">مفيش حجوزات أونلاين في آخر 30 يوم</p> :
+                        <div className="divide-y divide-gray-50">{list.slice(0, 10).map(a => <div key={a.id} className="flex items-center gap-3 py-2.5">
+                            <div className="min-w-0 flex-1"><p className="text-sm font-black text-gray-800 truncate">{a.patientName}</p><p className="text-[11px] text-gray-400 font-bold truncate">{[a.service, a.doctorName && 'د. ' + a.doctorName].filter(Boolean).join(' • ')}</p></div>
+                            <span className="text-[11px] font-black text-gray-600 shrink-0" dir="ltr">{a.date} {a.time}</span>
+                        </div>)}</div>}
+                    <p className="text-[11px] text-gray-400 font-bold mt-3">إدارة الحجوزات (تأكيد، حضور، إلغاء) من السيستم.</p>
+                </div>
+            </>;
         };
 
         // --- Booking Section (مربوطة بنفس نظام صفحة الحجز والسيستم: دكاترة عامة + أوقات محجوزة + كود حجز) ---
@@ -545,6 +708,10 @@
             }, [selectedDate]);
 
             const branchDoctors = doctors.filter(d => Array.isArray(d.branchIds) && d.branchIds.includes(formData.branchId));
+            // أيام عمل الدكتور (من السيستم) — لو مفيش أيام متحددة يبقى متاح كل الأيام
+            const docObj = doctors.find(x => x.id === formData.doctorId);
+            const docDays = docObj && docObj.days && docObj.days[formData.branchId];
+            const doctorOff = !!(formData.doctorId && selectedDate && Array.isArray(docDays) && docDays.length && !docDays.includes(new Date(selectedDate + 'T00:00:00').getDay()));
             const own = currentApp && currentApp.branchId === formData.branchId && currentApp.doctorId === formData.doctorId && currentApp.date === selectedDate ? currentApp.time : null;
             const bookedSlots = daySlots.filter(x => x.branchId === formData.branchId && (x.doctorId || '') === formData.doctorId && x.time !== own).map(x => x.time);
             useEffect(() => { if (selectedTime && bookedSlots.includes(selectedTime)) setSelectedTime(null); }, [daySlots, formData.branchId, formData.doctorId]);
@@ -557,6 +724,7 @@
                 e.preventDefault();
                 if (!formData.branchId) return setError(T("الرجاء اختيار الفرع", "Please select a branch"));
                 if (!formData.doctorId) return setError(T("الرجاء اختيار الدكتور", "Please select a doctor"));
+                if (doctorOff) return setError(T("الدكتور غير متاح في اليوم ده", "Doctor not available on this day"));
                 if (!selectedTime) return setError(T("الرجاء اختيار الوقت", "Please select a time"));
                 setIsSubmitting(true); setError("");
                 const doctor = doctors.find(d => d.id === formData.doctorId);
@@ -632,10 +800,8 @@
                 if (!currentApp || !confirm(T('إلغاء الموعد نهائياً؟', 'Cancel this appointment?'))) return;
                 setIsSubmitting(true);
                 try {
-                    const b = db.batch();
-                    b.delete(db.collection('appointments').doc(currentApp.id));
-                    if (currentApp.bookingCode) b.delete(db.collection('online_bookings').doc(currentApp.bookingCode));
-                    await b.commit();
+                    // الحجز بيتعلّم "كنسل" (مش بيتمسح) عشان العيادة تتابع مع المريض
+                    await db.collection('appointments').doc(currentApp.id).update({ status: 'canceled', canceledAt: new Date().toISOString(), canceledBy: 'patient' });
                     reset(); setView('landing');
                     alert(T('تم إلغاء الموعد', 'Appointment canceled'));
                 } catch (err) { console.error(err); setError(T("حصل خطأ أثناء الإلغاء", "Cancel failed")); }
@@ -712,6 +878,7 @@
                             </div>
                             <div className="space-y-3">
                                 <input type="date" required value={selectedDate} onChange={(e) => { setSelectedDate(e.target.value); setSelectedTime(null); }} min={todayStr} className="w-full bg-white border-2 border-pharaonic/30 focus:border-pharaonic p-3 rounded-lg outline-none font-bold text-sm md:text-base text-gray-800 cursor-pointer transition-colors shadow-sm" />
+                                {doctorOff ? <div className="bg-red-50 border border-red-100 text-red-600 rounded-lg p-4 text-sm font-bold text-center">{T('الدكتور غير متاح في اليوم ده — اختار يوم تاني أو دكتور تاني.', 'The doctor is not available on this day — please pick another day or doctor.')}</div> :
                                 <div className="bg-gray-50 border border-gray-200 rounded-lg p-2.5 shadow-inner">
                                     <div className="grid grid-cols-3 gap-1.5 max-h-32 overflow-y-auto pr-1 custom-scrollbar">
                                         {SLOT_TIMES.map(slot => {
@@ -725,10 +892,10 @@
                                             );
                                         })}
                                     </div>
-                                </div>
+                                </div>}
                             </div>
                             <div className="md:col-span-2 mt-1">
-                                <button type="submit" disabled={isSubmitting || !selectedTime || !formData.doctorId}
+                                <button type="submit" disabled={isSubmitting || !selectedTime || !formData.doctorId || doctorOff}
                                     className="w-full bg-pharaonic text-white font-black py-3 rounded-lg shadow-xl hover:shadow-pharaonic/50 hover:-translate-y-1 transition-all disabled:opacity-50 text-lg md:text-xl disabled:hover:translate-y-0">
                                     {isSubmitting ? '...' : (currentApp ? T('حفظ التعديل', 'Save Changes') : T('تأكيد الحجز', 'Confirm Booking'))}
                                 </button>
@@ -855,7 +1022,17 @@
             const reviewSliderRef = useRef(null);
 
             const l = { ...(t[lang] || t.en), ...((cfg.texts || {})[lang] || {}) };
-            const SVC = cfg.services.map(sv => ({ ...sv, icon: BASE_ICONS[sv.id] || <Icons.Sparkles size={26} /> }));
+            const SVC = cfg.services.filter(sv => !sv.hidden).map(sv => ({ ...sv, title: (lang === 'en' && sv.titleEn) || sv.title, desc: (lang === 'en' && sv.descEn) || sv.desc, icon: BASE_ICONS[sv.id] || <Icons.Sparkles size={26} /> }));
+            const show = k => (cfg.show || {})[k] !== false;
+            const [annClosed, setAnnClosed] = useState(false);
+            const ann = cfg.announce || {}; const annText = (lang === 'en' && ann.en) || ann.ar;
+            const showAnn = ann.on && annText && !annClosed;
+            // SEO: العنوان والوصف من اللوحة
+            useEffect(() => {
+                const se = cfg.seo || {};
+                if (se.title) document.title = se.title;
+                if (se.desc) { let m = document.querySelector('meta[name="description"]'); if (!m) { m = document.createElement('meta'); m.name = 'description'; document.head.appendChild(m); } m.content = se.desc; }
+            }, [cfg.seo]);
             const isRtl = lang === 'ar';
 
             useEffect(() => {
@@ -897,15 +1074,19 @@
             return (
                 <div>
                 {/* Floating Official WhatsApp Button */}
-                <a href={`https://wa.me/${cfg.whatsapp}`} target="_blank" rel="noreferrer" 
+                {show('whatsapp') && cfg.whatsapp && <a href={`https://wa.me/${cfg.whatsapp}`} target="_blank" rel="noreferrer" 
                     className="fixed bottom-6 left-6 z-50 bg-[#25D366] text-white w-14 h-14 md:w-16 md:h-16 rounded-full shadow-[0_4px_15px_rgba(37,211,102,0.4)] hover:scale-110 transition-transform whatsapp-bounce flex items-center justify-center border-none">
                     <svg viewBox="0 0 24 24" width="32" height="32" fill="currentColor">
                     <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51a12.8 12.8 0 00-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/>
                     </svg>
-                </a>
+                </a>}
 
                 {/* Floating Navbar */}
                 <div className={`fixed z-50 transition-all duration-300 w-full ${scrolled ? 'top-3 px-3 md:px-4' : 'top-0 px-0'}`}>
+                    {showAnn && !scrolled && <div className="bg-pharaonic text-white text-xs md:text-sm font-black py-2 px-10 text-center relative">
+                        <a href={ann.link || '#booking-section'} target={ann.link ? '_blank' : undefined} rel="noreferrer" className="hover:underline">{annText}</a>
+                        <button onClick={() => setAnnClosed(true)} className="absolute left-3 top-1/2 -translate-y-1/2 opacity-80 hover:opacity-100" aria-label="close">✕</button>
+                    </div>}
                     <nav className={`${scrolled ? 'rounded-2xl shadow-2xl bg-white/95 backdrop-blur-lg border border-gray-100' : 'bg-white shadow-sm border-b border-gray-100'}`}>
                     <div className="container mx-auto px-4 py-3 flex justify-between items-center">
                         <div className="flex items-center cursor-pointer" onClick={handleBackHome}>
@@ -984,9 +1165,9 @@
                         </div>
 
                         <div className="w-full max-w-3xl mx-auto mb-6 animate-float-fast">
-                            <div className="flex flex-col space-y-0 mb-3">
+                            {show('counters') && <div className="flex flex-col space-y-0 mb-3">
                             {cfg.counters.map((c, i) => <LiveCounter key={i + '-' + c.n} targetNumber={c.n} title={c[lang] || c.ar} />)}
-                            </div>
+                            </div>}
                             <p className="text-pharaonic font-black text-xl md:text-2xl drop-shadow-xl mt-3">
                             {l.heroSlogan}
                             </p>
@@ -1001,7 +1182,7 @@
                     </section>
                     </FadeUp>
 
-                    <section id="about" className="py-12 bg-[#FDFCFB] relative z-20">
+                    {show('about') && <section id="about" className="py-12 bg-[#FDFCFB] relative z-20">
                         <FadeUp>
                         <div className="container mx-auto px-4 text-center max-w-3xl animate-float-slow" style={{ animationDuration: '6s' }}>
                         <span className="text-pharaonic font-black text-sm tracking-widest uppercase mb-2 block">{l.about}</span>
@@ -1011,9 +1192,9 @@
                         </p>
                         </div>
                         </FadeUp>
-                    </section>
+                    </section>}
 
-                    <section id="services" className="py-10 bg-white border-y border-gray-100 overflow-hidden">
+                    {show('services') && SVC.length > 0 && <section id="services" className="py-10 bg-white border-y border-gray-100 overflow-hidden">
                         <div className="container mx-auto px-4 relative">
                         <FadeUp>
                         <div className="text-center mb-6">
@@ -1055,13 +1236,13 @@
                         </div>
                         </FadeUp>
                         </div>
-                    </section>
+                    </section>}
 
-                    <VisionMissionSection l={l} isRtl={isRtl} />
+                    {show('vision') && <VisionMissionSection l={l} isRtl={isRtl} />}
 
-                    <GallerySection imgs={(cfg.gallery || []).filter(Boolean)} title={cfg.galleryTitle} />
+                    {show('gallery') && <GallerySection imgs={(cfg.gallery || []).filter(Boolean)} title={(lang === 'en' && cfg.galleryTitleEn) || cfg.galleryTitle} />}
 
-                    <section id="reviews" className="py-10 bg-gray-50 border-y border-gray-200 overflow-hidden">
+                    {show('reviews') && cfg.reviews.some(r => !r.hidden && r.text) && <section id="reviews" className="py-10 bg-gray-50 border-y border-gray-200 overflow-hidden">
                         <div className="container mx-auto px-4">
                         <FadeUp>
                         <div className="text-center mb-6">
@@ -1081,7 +1262,7 @@
                             </button>
 
                             <div ref={reviewSliderRef} className="flex overflow-x-auto pb-10 pt-4 hide-scroll-bar snap-x snap-mandatory gap-5 px-4">
-                            {REVIEWS.map((review, idx) => { const g = cfg.googleReviews !== false; return (
+                            {cfg.reviews.filter(r => !r.hidden && r.text).map((review, idx) => { const g = cfg.googleReviews !== false; return (
                                 <div key={idx} className="snap-center shrink-0 w-[280px] md:w-[320px] bg-white rounded-xl p-4 shadow-md border border-gray-200 flex flex-col gap-3">
                                     <div className="flex items-center gap-3">
                                         <div className="w-10 h-10 rounded-full text-white font-black flex items-center justify-center text-lg shrink-0" style={{ background: AVATARS[idx % AVATARS.length] }}>{review.name.replace('م. ', '').charAt(0)}</div>
@@ -1091,18 +1272,18 @@
                                         </div>
                                         {g && <GoogleG size={22} />}
                                     </div>
-                                    <div className="flex" style={{ color: '#FBBC04' }}>{[...Array(5)].map((_, k) => <Icons.Star key={k} size={16} fill="currentColor" />)}</div>
+                                    <div className="flex" style={{ color: '#FBBC04' }}>{[...Array(5)].map((_, k) => <Icons.Star key={k} size={16} fill={k < (review.stars || 5) ? 'currentColor' : 'none'} />)}</div>
                                     <p className="text-gray-700 text-sm leading-relaxed">{review.text}</p>
                                 </div>); })}
                             </div>
                         </div>
                         </FadeUp>
                         </div>
-                    </section>
+                    </section>}
 
-                    <section className="py-12 bg-[#FDFCFB] relative">
+                    {show('booking') && <section className="py-12 bg-[#FDFCFB] relative">
                         <BookingSection l={l} isRtl={isRtl} branches={dbBranches} />
-                    </section>
+                    </section>}
                     </main>
                 ) : (
                     <main className="bg-[#FDFCFB] animate-fade-in pb-16">
@@ -1140,27 +1321,25 @@
                         
                         {(activeService.gallery || []).filter(Boolean).length > 0 && <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-10">{activeService.gallery.filter(Boolean).map((u, i) => <img key={i} src={u} loading="lazy" className="w-full h-40 object-cover rounded-2xl shadow-lg hover:scale-[1.03] transition-transform" />)}</div>}
                         <div className="mb-10">
-                            <VisionMissionSection l={l} isRtl={isRtl} />
+                            {show('vision') && <VisionMissionSection l={l} isRtl={isRtl} />}
                         </div>
 
-                        <BookingSection key={activeService.id} defaultService={activeService.title} l={l} isRtl={isRtl} branches={dbBranches} />
+                        {show('booking') && <BookingSection key={activeService.id} defaultService={activeService.title} l={l} isRtl={isRtl} branches={dbBranches} />}
                     </div>
                     </main>
                 )}
 
-                <FadeUp delay={100}>
+                {['facebook', 'instagram', 'youtube', 'tiktok'].some(k => cfg.socials[k]) && <FadeUp delay={100}>
                 <section className="py-2.5 bg-pharaonic text-white border-t border-pharaonic-dark">
                     <div className="container mx-auto px-4 flex flex-col md:flex-row items-center justify-center gap-4">
-                        <h3 className="text-sm md:text-base font-black m-0">تابعنا على منصات السوشيال ميديا</h3>
-                        <div className="flex justify-center space-x-4 space-x-reverse">
-                        <a href="https://www.facebook.com/share/19XfLQrD83/" target="_blank" rel="noreferrer" className="w-9 h-9 bg-white text-pharaonic rounded-full flex items-center justify-center shadow-md hover:scale-110 hover:bg-gray-900 hover:text-white transition-all"><Icons.Facebook size={16}/></a>
-                        <a href="https://www.instagram.com/invites/contact/?utm_source=ig_contact_invite&utm_medium=copy_link&utm_content=t2n9ivi" target="_blank" rel="noreferrer" className="w-9 h-9 bg-white text-pharaonic rounded-full flex items-center justify-center shadow-md hover:scale-110 hover:bg-gray-900 hover:text-white transition-all"><Icons.Instagram size={16}/></a>
-                        <a href="https://youtube.com/@neweradentalcenter?si=J5e3GA6amvjAZN0o" target="_blank" rel="noreferrer" className="w-9 h-9 bg-white text-pharaonic rounded-full flex items-center justify-center shadow-md hover:scale-110 hover:bg-gray-900 hover:text-white transition-all"><Icons.Youtube size={16}/></a>
-                        <a href="https://www.tiktok.com/@neweradentalcenter?_r=1&_t=ZS-94Zj9UJ4yT1" target="_blank" rel="noreferrer" className="w-9 h-9 bg-white text-pharaonic rounded-full flex items-center justify-center shadow-md hover:scale-110 hover:bg-gray-900 hover:text-white transition-all"><Icons.TikTok size={16}/></a>
+                        <h3 className="text-sm md:text-base font-black m-0">{l.followUs}</h3>
+                        <div className="flex justify-center gap-4">
+                        {[['facebook', Icons.Facebook], ['instagram', Icons.Instagram], ['youtube', Icons.Youtube], ['tiktok', Icons.TikTok]].filter(([k]) => cfg.socials[k]).map(([k, Ic]) =>
+                            <a key={k} href={cfg.socials[k]} target="_blank" rel="noreferrer" aria-label={k} className="w-9 h-9 bg-white text-pharaonic rounded-full flex items-center justify-center shadow-md hover:scale-110 hover:bg-gray-900 hover:text-white transition-all"><Ic size={16}/></a>)}
                         </div>
                     </div>
                 </section>
-                </FadeUp>
+                </FadeUp>}
 
                 <FadeUp delay={200}>
                 <footer className="bg-gray-900 text-white pt-4 pb-2 font-body relative z-20">
@@ -1173,13 +1352,13 @@
                             <span className="text-pharaonic text-[8px] font-black tracking-[0.26em] uppercase" style={{ lineHeight: '1' }}>DENTAL CENTER</span>
                         </div>
                         <p className="text-gray-400 text-xs leading-relaxed font-bold max-w-xs mx-auto md:mx-0">
-                            خبرة و جودة عالمية لأكثر من 10 سنوات.
+                            {l.footerAbout}
                         </p>
                         </div>
 
                         {/* قسم الفروع بعد التعديل */}
                         <div className="text-start">
-                        <h3 className="text-base font-black mb-2 text-white border-b border-pharaonic/50 pb-1 inline-block">فروعنا</h3>
+                        <h3 className="text-base font-black mb-2 text-white border-b border-pharaonic/50 pb-1 inline-block">{l.branchesT}</h3>
                         <ul className="space-y-1.5">
                             {(dbBranches.length > 0 ? dbBranches : l.branches).map(b => {
                                 // حل ذكي: لو مفيش لينك للفرع في الداتا، هيعمل لينك بحث على جوجل ماب أوتوماتيك
@@ -1207,7 +1386,7 @@
                         </div>
 
                         <div>
-                        <h3 className="text-base font-black mb-2 text-white border-b border-pharaonic/50 pb-1 inline-block">تواصل معنا</h3>
+                        <h3 className="text-base font-black mb-2 text-white border-b border-pharaonic/50 pb-1 inline-block">{l.contactT}</h3>
                         <ul className="space-y-1.5 text-sm text-gray-200">
                             {(cfg.phones || []).filter(Boolean).map((ph, i) => (
                             <li key={i} className="flex items-center justify-center md:justify-start font-sans font-black tracking-widest" dir="ltr">
@@ -1215,6 +1394,7 @@
                             {ph}
                             </li>))}
                         </ul>
+                        {((lang === 'en' && cfg.hours.en) || cfg.hours.ar) && <p className="text-xs text-gray-300 font-bold mt-2">🕓 {l.hoursT}: {(lang === 'en' && cfg.hours.en) || cfg.hours.ar}</p>}
                         </div>
                     </div>
 
