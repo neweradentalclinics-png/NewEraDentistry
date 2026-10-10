@@ -776,7 +776,7 @@
             branchStep: ['اختار الفرع', 'Choose a branch'], serviceStep: ['محتاج إيه؟', 'What do you need?'], dateStep: ['اليوم والوقت', 'Date & time'], detailsStep: ['بياناتك', 'Your details'],
             submit: ['تأكيد الحجز', 'Confirm booking'], costLabel: ['التكلفة المتوقعة', 'Expected cost'], costNote: ['السعر تقريبي وبيتحدد نهائياً بعد الكشف.', 'Approximate — the final price is set after examination.'],
             success: ['تم الحجز بنجاح!', 'Booked successfully!'], successNote: ['هنكلمك قبل الميعاد للتأكيد. احتفظ بالكود عشان تعدّل أو تلغي.', 'We will call to confirm. Keep the code to change or cancel.'],
-            noTimes: ['مفيش مواعيد متاحة في اليوم ده — جرّب يوم تاني.', 'No available times on this day — try another day.'],
+            noTimes: ['مواعيد النهارده خلصت — اختار يوم تاني.', 'Today\'s times are over — pick another day.'],
             consultIntro: ['ابعت سؤالك لدكاترتنا مجاناً، والدكتور المختص هيرد عليك في أقرب وقت. تقدر تتابع الرد بالكود اللي هيظهرلك.', 'Send your question to our doctors for free. Track the reply with the code you get.'],
             consultSubmit: ['ابعت الاستشارة', 'Send question'], consultDone: ['استشارتك اتبعتت!', 'Question sent!']
         };
@@ -833,14 +833,23 @@
                 : (cfg.services || []).filter(s => !s.hidden).map(s => ({ id: 'site_' + s.id, name: s.title, label: (lang === 'en' && s.titleEn) || s.title, priceFrom: s.priceFrom, priceTo: s.priceTo }));
             const go = t => { setTab(t); setDone(null); setEditApp(null); };
             const TABS = [['book', L('bookTab')], ['consult', L('consultTab')], ['track', L('trackTab')]];
+            // بيانات الفرع + التكلفة المتوقعة (بتيجي من فورم الحجز) — بتظهر على جنب الكارت
+            const [info, setInfo] = useState(null);
+            const side = tab === 'book' && !done && bl.length && info && info.branch ? info : null;
+            const dir = lang === 'en' ? 'ltr' : 'rtl';
             return (
-                <div className="bg-white w-full rounded-[28px] shadow-2xl border border-gray-100 p-4 sm:p-7" dir={lang === 'en' ? 'ltr' : 'rtl'}>
-                    <div className="flex bg-gray-100 p-1 rounded-2xl mb-6 overflow-x-auto">{TABS.map(([k, n]) => <button key={k} type="button" onClick={() => go(k)} className={`flex-1 px-3 py-2.5 rounded-xl text-xs sm:text-sm font-black whitespace-nowrap transition-all ${tab === k ? 'bg-white shadow text-pharaonic' : 'text-gray-500'}`}>{n}</button>)}</div>
-                    {!bl.length ? <p className="text-center font-bold text-gray-400 p-6 animate-pulse">{T('جاري التحميل...', 'Loading...')}</p>
-                    : done ? <BkDone d={done} lang={lang} L={L} onBack={() => go(done.type === 'consult' ? 'consult' : 'book')} />
-                    : tab === 'book' ? <BkForm key={editApp ? 'e' + editApp.id : 'n'} bk={bk} lang={lang} L={L} branches={bl} data={data} svcList={svcList} presetService={presetService} initial={editApp} onDone={d => setDone({ type: 'booking', ...d })} />
-                    : tab === 'consult' ? <BkConsult lang={lang} L={L} branches={bl} data={data} onDone={d => setDone({ type: 'consult', ...d })} />
-                    : <BkTrack lang={lang} branches={branches} initialCode={initialCode} onEdit={a => { setEditApp(a); setTab('book'); }} />}
+                // dir="rtl" ثابت للترتيب: الخريطة يمين الكارت، والبيانات والتكلفة شماله (في الموبايل تحت بعض)
+                <div dir="rtl" className="grid gap-4 items-start lg:grid-cols-[minmax(0,1fr)_minmax(0,620px)_minmax(0,1fr)]">
+                    <div className="order-3 lg:order-1 lg:sticky lg:top-24" dir={dir}>{side && bk.showMap && <BkMapPanel b={side.branch} lang={lang} />}</div>
+                    <div className="order-1 lg:order-2 bg-white w-full rounded-[28px] shadow-2xl border border-gray-100 p-4 sm:p-7" dir={dir}>
+                        <div className="flex bg-gray-100 p-1 rounded-2xl mb-6 overflow-x-auto">{TABS.map(([k, n]) => <button key={k} type="button" onClick={() => go(k)} className={`flex-1 px-3 py-2.5 rounded-xl text-xs sm:text-sm font-black whitespace-nowrap transition-all ${tab === k ? 'bg-white shadow text-pharaonic' : 'text-gray-500'}`}>{n}</button>)}</div>
+                        {!bl.length ? <p className="text-center font-bold text-gray-400 p-6 animate-pulse">{T('جاري التحميل...', 'Loading...')}</p>
+                        : done ? <BkDone d={done} lang={lang} L={L} onBack={() => go(done.type === 'consult' ? 'consult' : 'book')} />
+                        : tab === 'book' ? <BkForm key={editApp ? 'e' + editApp.id : 'n'} bk={bk} lang={lang} L={L} branches={bl} data={data} svcList={svcList} presetService={presetService} initial={editApp} onInfo={setInfo} onDone={d => setDone({ type: 'booking', ...d })} />
+                        : tab === 'consult' ? <BkConsult lang={lang} L={L} branches={bl} data={data} onDone={d => setDone({ type: 'consult', ...d })} />
+                        : <BkTrack lang={lang} branches={branches} initialCode={initialCode} onEdit={a => { setEditApp(a); setTab('book'); }} />}
+                    </div>
+                    <div className="order-2 lg:order-3 lg:sticky lg:top-24" dir={dir}>{side && <BkInfoPanel b={side.branch} lang={lang} L={L} bk={bk} chosen={side.chosen} estimate={side.estimate} />}</div>
                 </div>
             );
         };
@@ -848,28 +857,72 @@
         const BkStep = ({ n, children }) => <p className="text-sm font-black text-gray-800 mb-2 flex items-center gap-2"><span className="w-6 h-6 rounded-full bg-pharaonic text-white text-xs flex items-center justify-center shrink-0">{n}</span>{children}</p>;
         const bkInp = "w-full bg-gray-50 border border-gray-200 focus:border-pharaonic p-3 rounded-xl outline-none font-bold transition-colors";
 
-        const BkBranchInfo = ({ b, lang, estimate, showMap }) => {
+        // الخريطة (يمين الكارت)
+        const BkMapPanel = ({ b, lang }) => (
+            <div className="bg-white rounded-[28px] shadow-xl border border-gray-100 p-2 animate-fade-in">
+                <div className="rounded-[22px] overflow-hidden bg-gray-100 h-[260px] lg:h-[440px] relative"><iframe key={b.id} title="map" src={bkMapSrc(b, lang)} className="absolute inset-0 w-full h-full border-0" loading="lazy" referrerPolicy="no-referrer-when-downgrade" allowFullScreen></iframe></div>
+                {b.mapsLink && <a href={b.mapsLink} target="_blank" rel="noreferrer" className="block text-center text-xs font-black text-blue-600 py-2">{lang === 'en' ? 'Open in Google Maps ↗' : 'افتح على جوجل مابس ↗'}</a>}
+            </div>
+        );
+        // بيانات الفرع + التكلفة المتوقعة (شمال الكارت)
+        const BkInfoPanel = ({ b, lang, L, bk, chosen, estimate }) => {
             const T = (ar, en) => lang === 'en' ? en : ar;
             const rows = [
                 b.address && ['📍', T('العنوان', 'Address'), b.address],
                 b.hours && ['🕓', T('مواعيد العمل', 'Working hours'), b.hours],
                 b.waitTime && ['⏳', T('مدة الانتظار المتوقعة', 'Expected waiting time'), b.waitTime],
-                (estimate || b.consultFee) && ['💳', T('التكلفة المتوقعة', 'Expected cost'), estimate || T('الكشف: ', 'Consultation: ') + b.consultFee],
                 b.phone && ['📞', T('تليفون الفرع', 'Branch phone'), <a href={'tel:' + b.phone} dir="ltr" className="underline">{b.phone}</a>]
             ].filter(Boolean);
+            const cost = bk.showCost && (estimate || b.consultFee);
             return (
-                <div className={`grid gap-3 ${showMap ? 'md:grid-cols-2' : ''} animate-fade-in`}>
-                    {showMap && <div className="rounded-2xl overflow-hidden border border-gray-100 bg-gray-100 min-h-[220px] relative"><iframe title="map" src={bkMapSrc(b, lang)} className="absolute inset-0 w-full h-full border-0" loading="lazy" referrerPolicy="no-referrer-when-downgrade" allowFullScreen></iframe></div>}
-                    <div className="bg-gray-50 rounded-2xl p-4 border border-gray-100 space-y-2.5">
-                        <p className="font-black text-gray-900">{T('فرع ', '')}{b.name}</p>
+                <div className="space-y-3 animate-fade-in">
+                    <div className="bg-white rounded-[28px] shadow-xl border border-gray-100 p-5 space-y-3">
+                        <p className="font-black text-gray-900 text-lg">{T('فرع ', '')}{b.name}</p>
                         {rows.map(([ic, l, v], i) => <div key={i} className="flex gap-2.5"><span className="shrink-0">{ic}</span><div className="min-w-0"><p className="text-[11px] font-bold text-gray-400">{l}</p><div className="text-sm font-bold text-gray-800 break-words">{v}</div></div></div>)}
-                        {b.mapsLink && <a href={b.mapsLink} target="_blank" rel="noreferrer" className="inline-block text-xs font-black text-blue-600">{T('افتح على جوجل مابس ↗', 'Open in Google Maps ↗')}</a>}
+                        {!rows.length && <p className="text-xs font-bold text-gray-400">{T('هنتواصل معاك لتأكيد الميعاد.', 'We will contact you to confirm.')}</p>}
                     </div>
+                    {cost && <div className="bg-pharaonic/10 border border-pharaonic/30 rounded-[28px] p-5">
+                        <p className="text-sm font-black text-gray-800 mb-1">💳 {L('costLabel')}</p>
+                        {chosen.length > 0 && <ul className="text-xs font-bold text-gray-600 mb-2 space-y-0.5">{chosen.map(s => <li key={s.id}>• {s.label}</li>)}</ul>}
+                        <p className="text-2xl font-black text-[#B5952F]" dir="auto">{estimate || T('الكشف: ', 'Consultation: ') + b.consultFee}</p>
+                        <p className="text-[10px] font-bold text-gray-500 mt-1">{L('costNote')}</p>
+                    </div>}
+                </div>
+            );
+        };
+        // قايمة منسدلة لاختيار خدمة أو أكتر (من غير أسعار)
+        const BkMulti = ({ groups, value, onChange, lang, placeholder }) => {
+            const T = (ar, en) => lang === 'en' ? en : ar;
+            const [open, setOpen] = useState(false);
+            const [q, setQ] = useState('');
+            const box = useRef(null);
+            useEffect(() => { if (!open) return; const h = e => { if (box.current && !box.current.contains(e.target)) setOpen(false); }; document.addEventListener('mousedown', h); document.addEventListener('touchstart', h); return () => { document.removeEventListener('mousedown', h); document.removeEventListener('touchstart', h); }; }, [open]);
+            const all = groups.flatMap(g => g.items);
+            const sel = all.filter(s => value.includes(s.id));
+            const toggle = id => onChange(value.includes(id) ? value.filter(x => x !== id) : [...value, id]);
+            const shown = groups.map(g => ({ ...g, items: g.items.filter(s => !q || (s.label + ' ' + s.name).toLowerCase().includes(q.toLowerCase())) })).filter(g => g.items.length);
+            return (
+                <div ref={box} className="relative">
+                    <button type="button" onClick={() => setOpen(o => !o)} className={bkInp + ' flex items-center justify-between gap-2 text-start ' + (open ? 'border-pharaonic' : '')}>
+                        <span className="flex flex-wrap gap-1.5 min-w-0">{sel.length ? sel.map(s => <span key={s.id} className="bg-pharaonic/15 text-gray-800 text-xs font-black px-2 py-1 rounded-lg">{s.label}</span>) : <span className="text-gray-400">{placeholder}</span>}</span>
+                        <span className={`text-gray-400 text-xs shrink-0 transition-transform ${open ? 'rotate-180' : ''}`}>▼</span>
+                    </button>
+                    {open && <div className="absolute z-30 inset-x-0 mt-1 bg-white rounded-2xl shadow-2xl border border-gray-200 p-2 max-h-80 overflow-y-auto">
+                        {all.length > 8 && <input autoFocus value={q} onChange={e => setQ(e.target.value)} placeholder={T('ابحث عن خدمة...', 'Search...')} className="w-full bg-gray-50 border border-gray-200 p-2 rounded-xl outline-none text-sm font-bold mb-2" />}
+                        {shown.map((g, gi) => <div key={gi} className="mb-1">{g.name && <p className="text-[11px] font-black text-gray-400 px-2 pt-1">{g.name}</p>}
+                            {g.items.map(s => { const on = value.includes(s.id); return (
+                                <label key={s.id} title={s.note || ''} className={`flex items-center gap-2.5 px-2 py-2 rounded-xl cursor-pointer ${on ? 'bg-pharaonic/10' : 'hover:bg-gray-50'}`}>
+                                    <input type="checkbox" checked={on} onChange={() => toggle(s.id)} className="w-4 h-4 accent-[#D4AF37]" />
+                                    <span className="text-sm font-bold text-gray-800">{s.label}</span>
+                                </label>); })}</div>)}
+                        {!shown.length && <p className="text-center text-xs font-bold text-gray-400 p-3">{T('مفيش نتايج', 'No results')}</p>}
+                        <button type="button" onClick={() => setOpen(false)} className="sticky bottom-0 w-full mt-1 bg-pharaonic text-white text-sm font-black py-2 rounded-xl">{T('تم', 'Done')}{sel.length ? ` (${sel.length})` : ''}</button>
+                    </div>}
                 </div>
             );
         };
 
-        const BkForm = ({ bk, lang, L, branches, data, svcList, presetService, initial, onDone }) => {
+        const BkForm = ({ bk, lang, L, branches, data, svcList, presetService, initial, onInfo, onDone }) => {
             const T = (ar, en) => lang === 'en' ? en : ar;
             const editing = !!(initial && initial.id);
             const fields = bk.fields.filter(f => !f.hidden || f.system);
@@ -902,14 +955,16 @@
             const taken = new Set(slotsTaken.filter(x => x.branchId === f.branchId).map(x => (x.doctorId || 'none') + '|' + x.time));
             const freeDocs = time => docsForSlots.filter(d => !taken.has(d.id + '|' + time) || (own && own.doc === d.id && own.time === time));
             const today = bkDay(), now = new Date();
-            const times = (!f.branchId || !f.date) ? [] : BK_SLOTS.filter(v => { if (f.date === today) { const [h, m] = v.split(':').map(Number); if (h * 60 + m <= now.getHours() * 60 + now.getMinutes() && !(own && own.time === v)) return false; } return freeDocs(v).length > 0; });
+            const times = (!f.branchId || !f.date) ? [] : BK_SLOTS.filter(v => { if (f.date === today) { const [h, m] = v.split(':').map(Number); if (h * 60 + m <= now.getHours() * 60 + now.getMinutes() && !(own && own.time === v)) return false; } return true; });
+            // المريض يقدر يحجز أي وقت. لو مفيش دكتور مناسب فاضي، الحجز بيتسجل "محتاج تظبيط" والسكرتارية تتابع معاه
             useEffect(() => { if (f.time && !times.includes(f.time)) set({ time: '' }); }, [slotsTaken, f.branchId, f.date, f.serviceIds.join()]);
             const lo = chosen.reduce((t, s) => t + bkNum(s.priceFrom), 0), hi = chosen.reduce((t, s) => t + (bkNum(s.priceTo) || bkNum(s.priceFrom)), 0);
             const money = n => bkNum(n).toLocaleString('en-US') + ' ' + T('ج', 'EGP');
             const estimate = chosen.length && (lo || hi) ? (hi > lo ? bkNum(lo).toLocaleString('en-US') + ' – ' + money(hi) : money(lo)) : '';
-            const price = s => { const a = bkNum(s.priceFrom), b = bkNum(s.priceTo); if (!a && !b) return ''; return (!b || b === a) ? money(a) : bkNum(a).toLocaleString('en-US') + ' – ' + money(b); };
             const fmt = v => { const [h, m] = v.split(':').map(Number); return (h % 12 || 12) + ':' + String(m).padStart(2, '0') + ' ' + (h >= 12 ? T('م', 'PM') : T('ص', 'AM')); };
             const grouped = (() => { const sp = data.specialties; const g = sp.map(x => ({ name: (lang === 'en' && x.nameEn) || x.name, items: svcList.filter(s => s.specialtyId === x.id) })).filter(x => x.items.length); const rest = svcList.filter(s => !sp.some(x => x.id === s.specialtyId)); if (rest.length) g.push({ name: g.length ? T('خدمات تانية', 'Other services') : '', items: rest }); return g; })();
+            useEffect(() => { if (onInfo) onInfo(branch ? { branch, chosen, estimate } : null); }, [f.branchId, f.serviceIds.join(), estimate, branch && JSON.stringify(branch)]);
+            useEffect(() => () => onInfo && onInfo(null), []);
             let n = 1;
 
             const submit = async e => {
@@ -927,7 +982,7 @@
                     let res = null;
                     for (const d of cands) {
                         const sid = bkSlotId(f.branchId, d.id, f.date, f.time), sRef = db.collection('booked_slots').doc(sid);
-                        const full = { ...base, doctorId: d.id, doctorName: d.name || '' };
+                        const full = { ...base, doctorId: d.id, doctorName: d.name || '', ...(editing && initial.needsSchedule ? { needsSchedule: false } : {}) };
                         try {
                             if (editing) {
                                 const oldSid = bkSlotId(initial.branchId, initial.doctorId, initial.date, initial.time), appRef = db.collection('appointments').doc(initial.id);
@@ -956,7 +1011,29 @@
                         } catch (x) { if (x.message !== 'SLOT_TAKEN') throw x; }
                         if (res) break;
                     }
-                    if (!res) { set({ time: '' }); setErr(T('الميعاد ده اتحجز حالاً، اختار وقت تاني', 'This time was just taken, pick another')); }
+                    // مفيش دكتور فاضي (أو مفيش دكتور اليوم ده): نسجّل الحجز برضه من غير دكتور، والسكرتارية تظبطه
+                    if (!res) {
+                        const full = { ...base, doctorId: 'none', doctorName: '', needsSchedule: true };
+                        if (editing) {
+                            const appRef = db.collection('appointments').doc(initial.id);
+                            const ch = (full.date !== initial.date || full.time !== initial.time || full.doctorId !== (initial.doctorId || '')) ? { rescheduledAt: new Date().toISOString(), rescheduledBy: 'patient', prevDate: initial.date || '', prevTime: initial.time || '', prevDoctorId: initial.doctorId || '', prevDoctorName: initial.doctorName || '' } : {};
+                            await db.runTransaction(async tx => { const cur = await tx.get(appRef); if (!cur.exists) throw new Error('GONE'); tx.update(appRef, { ...full, ...ch }); });
+                            res = { ...initial, ...full };
+                        } else {
+                            for (let i = 0; i < 4 && !res; i++) {
+                                const code = bkCode(), appRef = db.collection('appointments').doc(), bRef = db.collection('online_bookings').doc(code);
+                                try {
+                                    await db.runTransaction(async tx => {
+                                        if ((await tx.get(bRef)).exists) throw new Error('CODE_TAKEN');
+                                        tx.set(appRef, { ...full, bookingCode: code, source: 'online', status: 'unconfirmed', createdAt: new Date().toISOString() });
+                                        tx.set(bRef, { appointmentId: appRef.id });
+                                    });
+                                    res = { id: appRef.id, ...full, bookingCode: code };
+                                } catch (x) { if (x.message !== 'CODE_TAKEN') throw x; }
+                            }
+                        }
+                    }
+                    if (!res) setErr(T('حصل خطأ، جرب تاني', 'Something went wrong, try again'));
                     else onDone({ ...res, edited: editing, branch });
                 } catch (x) { console.error(x); setErr(x.message === 'GONE' ? T('الحجز ده مبقاش موجود', 'Booking no longer exists') : T('حصل خطأ، اتأكد من النت وجرب تاني', 'Something went wrong, check your connection')); }
                 setBusy(false);
@@ -967,17 +1044,10 @@
                     {editing && <p className="text-sm font-black text-pharaonic">{T('تعديل الحجز ', 'Editing ')}#{initial.bookingCode}</p>}
                     {branches.length > 1 && <div><BkStep n={n++}>{L('branchStep')}</BkStep>
                         <div className="flex flex-wrap gap-2">{branches.map(b => <button key={b.id} type="button" onClick={() => set({ branchId: b.id, time: '' })} className={`px-4 py-2.5 rounded-xl text-sm font-black border-2 transition-all ${f.branchId === b.id ? 'bg-pharaonic text-white border-pharaonic shadow-md' : 'bg-white text-gray-700 border-gray-200 hover:border-pharaonic'}`}>{b.name}</button>)}</div></div>}
-                    {branch && <BkBranchInfo b={branch} lang={lang} showMap={bk.showMap} estimate={bk.showCost && estimate ? estimate + T(' (تقريبي)', ' (approx.)') : ''} />}
 
-                    {branch && bk.showServices && svcList.length > 0 && <div className="animate-fade-in"><BkStep n={n++}>{L('serviceStep')}{!bk.serviceRequired && <span className="text-[11px] text-gray-400 font-bold">{T('(اختياري — تقدر تختار أكتر من خدمة)', '(optional — pick one or more)')}</span>}</BkStep>
-                        <div className="space-y-3">{grouped.map((g, gi) => <div key={gi}>{g.name && <p className="text-[11px] font-black text-gray-400 mb-1.5">{g.name}</p>}
-                            <div className="flex flex-wrap gap-2">{g.items.map(s => { const on = f.serviceIds.includes(s.id); return (
-                                <button key={s.id} type="button" title={s.note || ''} onClick={() => set({ serviceIds: on ? f.serviceIds.filter(x => x !== s.id) : [...f.serviceIds, s.id], time: '' })} className={`text-start px-3 py-2 rounded-xl border-2 transition-all ${on ? 'bg-pharaonic/10 border-pharaonic' : 'bg-white border-gray-200 hover:border-pharaonic/50'}`}>
-                                    <span className="block text-xs font-black text-gray-800">{on ? '✓ ' : ''}{s.label}</span>
-                                    {bk.showCost && price(s) && <span className="block text-[10px] font-bold text-[#B5952F]">{price(s)}{s.duration ? ' • ' + s.duration : ''}</span>}
-                                </button>); })}</div></div>)}</div>
-                        {bk.showCost && estimate && <div className="mt-3 bg-pharaonic/10 border border-pharaonic/30 rounded-2xl p-3 flex items-center justify-between gap-2"><span className="text-sm font-black text-gray-800">{L('costLabel')}</span><span className="text-base font-black text-[#B5952F]">{estimate}</span></div>}
-                        {bk.showCost && estimate && <p className="text-[10px] font-bold text-gray-400 mt-1">{L('costNote')}</p>}
+                    {branch && bk.showServices && svcList.length > 0 && <div className="animate-fade-in"><BkStep n={n++}>{L('serviceStep')}<span className="text-[11px] text-gray-400 font-bold">{bk.serviceRequired ? T('(تقدر تختار أكتر من خدمة)', '(you can pick more than one)') : T('(اختياري — تقدر تختار أكتر من خدمة)', '(optional — pick one or more)')}</span></BkStep>
+                        <BkMulti groups={grouped} value={f.serviceIds} onChange={ids => set({ serviceIds: ids })} lang={lang} placeholder={T('اختار الخدمة...', 'Choose a service...')} />
+                        {bk.showCost && estimate && <div className="lg:hidden mt-2 bg-pharaonic/10 border border-pharaonic/30 rounded-xl p-2.5 flex items-center justify-between gap-2"><span className="text-xs font-black text-gray-700">{L('costLabel')}</span><span className="text-sm font-black text-[#B5952F]">{estimate}</span></div>}
                     </div>}
 
                     {branch && <div className="animate-fade-in"><BkStep n={n++}>{L('dateStep')}</BkStep>
@@ -1355,7 +1425,7 @@
                         <div className="flex items-center gap-2"><button type="button" onClick={() => setLang(lang === 'ar' ? 'en' : 'ar')} className="text-xs font-black bg-gray-100 px-3 py-1.5 rounded-lg">{lang === 'ar' ? 'English' : 'عربي'}</button>
                             <a href="#" onClick={() => { location.hash = ''; }} className="text-xs font-black text-pharaonic">{isRtl ? 'الموقع ←' : '← Website'}</a></div>
                     </div></div>
-                    <div className="max-w-3xl mx-auto px-3 pt-6"><BookingWidget key={bkRoute.tab + bkRoute.code + lang} cfg={cfg} lang={lang} branches={dbBranches} tab={bkRoute.tab} initialCode={bkRoute.code} /></div>
+                    <div className="max-w-7xl mx-auto px-3 pt-6"><BookingWidget key={bkRoute.tab + bkRoute.code + lang} cfg={cfg} lang={lang} branches={dbBranches} tab={bkRoute.tab} initialCode={bkRoute.code} /></div>
                 </div>
             );
 
@@ -1586,7 +1656,7 @@
                     </section>}
 
                     {show('booking') && <section className="py-12 bg-[#FDFCFB] relative">
-                        <div className="w-full max-w-3xl mx-auto px-3" id="booking-section"><BookingWidget cfg={cfg} lang={lang} branches={dbBranches} tabRef={bookTab} /></div>
+                        <div className="w-full max-w-7xl mx-auto px-3" id="booking-section"><BookingWidget cfg={cfg} lang={lang} branches={dbBranches} tabRef={bookTab} /></div>
                     </section>}
                     </main>
                 ) : (
@@ -1628,7 +1698,7 @@
                             {show('vision') && <VisionMissionSection l={l} isRtl={isRtl} />}
                         </div>
 
-                        {show('booking') && <div className="w-full max-w-3xl mx-auto px-3" id="booking-section"><BookingWidget key={activeService.id + lang} cfg={cfg} lang={lang} branches={dbBranches} presetService={((cfg.services || []).find(x => x.id === activeService.id) || {}).title || activeService.title} /></div>}
+                        {show('booking') && <div className="w-full max-w-7xl mx-auto px-3" id="booking-section"><BookingWidget key={activeService.id + lang} cfg={cfg} lang={lang} branches={dbBranches} presetService={((cfg.services || []).find(x => x.id === activeService.id) || {}).title || activeService.title} /></div>}
                     </div>
                     </main>
                 )}
