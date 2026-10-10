@@ -330,7 +330,8 @@
             hero: { l: 'خلفية الهيدر', w: 1920, h: 800 },
             svc: { l: 'صورة الخدمة (الكارت + صفحة الخدمة)', w: 1600, h: 800 },
             svcx: { l: 'صور صفحة الخدمة الإضافية', w: 1200, h: 800 },
-            gal: { l: 'المعرض', w: 1200, h: 900 }
+            gal: { l: 'المعرض', w: 1200, h: 900 },
+            consult: { l: 'صورة قسم الاستشارة', w: 900, h: 900 }
         };
         const gcd = (a, b) => b ? gcd(b, a % b) : a;
         const ratioTxt = (s) => { const g = gcd(s.w, s.h); return `${s.w / g}:${s.h / g}`; };
@@ -447,7 +448,7 @@
 
         // ===== لوحة تحكم الموقع =====
         const ADMIN_TABS = [
-            ['overview', 'نظرة عامة', '📊'], ['hero', 'الهيدر', '🖼️'], ['counters', 'الأرقام', '🔢'], ['services', 'الخدمات', '🦷'],
+            ['overview', 'نظرة عامة', '📊'], ['booking', 'الحجز والاستشارة', '📅'], ['hero', 'الهيدر', '🖼️'], ['counters', 'الأرقام', '🔢'], ['services', 'الخدمات', '🦷'],
             ['gallery', 'المعرض', '📷'], ['reviews', 'آراء العملاء', '⭐'], ['texts', 'النصوص', '✏️'], ['sections', 'الأقسام والإعلان', '🧩'],
             ['contact', 'التواصل', '📞'], ['seo', 'جوجل (SEO)', '🔎'], ['backup', 'نسخة احتياطية', '💾'], ['general', 'إعدادات', '⚙️']
         ];
@@ -650,10 +651,46 @@
                                     {d.updatedAt && <p className="text-[11px] text-gray-400 font-bold text-center">آخر حفظ: {new Date(d.updatedAt).toLocaleString('ar-EG')}</p>}
                                 </div></>}
 
+                            {tab === 'booking' && (() => { const bk = bkCfg(d); const setBk = patch => setD(p => ({ ...p, booking: { ...bkCfg(p), ...patch } })); const setF = (i, patch) => setBk({ fields: bk.fields.map((x, j) => j === i ? { ...x, ...patch } : x) }); const mvF = (i, dir) => { const a = [...bk.fields]; const j = i + dir; if (j < 0 || j >= a.length) return; [a[i], a[j]] = [a[j], a[i]]; setBk({ fields: a }); }; const setBT = (lng, k, v) => setBk({ texts: { ...bk.texts, [lng]: { ...(bk.texts[lng] || {}), [k]: v } } });
+                                return <><H t="الحجز والاستشارة" s={'كارت الحجز جوه الموقع. اللينك المباشر للحجز (ابعتيه للمرضى): ' + location.href.split('#')[0] + '#book'} />
+                                <div className={card}>
+                                    <div className="flex flex-wrap gap-2"><a href={location.href.split('#')[0] + '#book'} target="_blank" rel="noreferrer" className="bg-gray-900 text-white px-3 py-2 rounded-lg text-xs font-black">افتح صفحة الحجز ↗</a>
+                                        <button type="button" onClick={() => { navigator.clipboard && navigator.clipboard.writeText(location.href.split('#')[0] + '#book'); alert('اتنسخ اللينك'); }} className="bg-gray-100 px-3 py-2 rounded-lg text-xs font-black">نسخ لينك الحجز</button>
+                                        <button type="button" onClick={() => { navigator.clipboard && navigator.clipboard.writeText(location.href.split('#')[0] + '#consult'); alert('اتنسخ لينك الاستشارة'); }} className="bg-gray-100 px-3 py-2 rounded-lg text-xs font-black">نسخ لينك الاستشارة</button></div>
+                                    <Toggle on={bk.showServices} set={v => setBk({ showServices: v })} label="خانة الخدمة" sub="المريض يختار الخدمة اللي محتاجها" />
+                                    {bk.showServices && <Toggle on={bk.serviceRequired} set={v => setBk({ serviceRequired: v })} label="الخدمة إجبارية" />}
+                                    <Toggle on={bk.showCost} set={v => setBk({ showCost: v })} label="إظهار الأسعار والتكلفة المتوقعة" />
+                                    <Toggle on={bk.showMap} set={v => setBk({ showMap: v })} label="خريطة الفرع" />
+                                </div>
+                                <BkBranchesAdmin bk={bk} setBk={setBk} card={card} />
+                                <div className={card}><p className="font-black text-sm">خانات البيانات</p><p className="text-[11px] text-gray-500 font-bold">الاسم والموبايل أساسيين. ضيفي أي خانة (السن، ملاحظات…) وهتظهر مع الحجز في السيستم.</p>
+                                    {bk.fields.map((fl, i) => <div key={fl.id} className="border border-gray-100 rounded-xl p-3 space-y-2">
+                                        <div className="flex items-center gap-2"><span className="flex gap-1"><button type="button" disabled={i === 0} onClick={() => mvF(i, -1)} className="w-7 h-7 rounded-lg bg-gray-100 text-xs disabled:opacity-30">▲</button><button type="button" disabled={i === bk.fields.length - 1} onClick={() => mvF(i, 1)} className="w-7 h-7 rounded-lg bg-gray-100 text-xs disabled:opacity-30">▼</button></span>
+                                            <span className="text-xs font-black text-gray-800 flex-1">{fl.label || 'خانة جديدة'}{fl.system ? <span className="text-[10px] text-gray-400"> (أساسية)</span> : ''}</span>
+                                            {!fl.system && <button type="button" onClick={() => confirm('حذف الخانة؟') && setBk({ fields: bk.fields.filter((_, j) => j !== i) })} className="text-red-500 text-xs font-black">حذف</button>}</div>
+                                        <div className="grid sm:grid-cols-2 gap-2"><input value={fl.label || ''} onChange={e => setF(i, { label: e.target.value })} className={inp} placeholder="اسم الخانة" /><input value={fl.labelEn || ''} dir="ltr" onChange={e => setF(i, { labelEn: e.target.value })} className={inp} placeholder="Label (English)" /></div>
+                                        <input value={fl.placeholder || ''} onChange={e => setF(i, { placeholder: e.target.value })} className={inp} placeholder="مثال يظهر جوه الخانة (اختياري)" />
+                                        {!fl.system && <div className="flex flex-wrap gap-2 items-center">
+                                            <select value={fl.type || 'text'} onChange={e => setF(i, { type: e.target.value })} className="p-2 bg-gray-50 border border-gray-200 rounded-lg text-xs font-bold"><option value="text">نص</option><option value="number">رقم</option><option value="textarea">نص طويل</option><option value="select">اختيارات</option></select>
+                                            <label className="flex items-center gap-1 text-xs font-bold"><input type="checkbox" checked={!!fl.required} onChange={e => setF(i, { required: e.target.checked })} /> إجبارية</label>
+                                            <label className="flex items-center gap-1 text-xs font-bold"><input type="checkbox" checked={!!fl.hidden} onChange={e => setF(i, { hidden: e.target.checked })} /> مخفية</label></div>}
+                                        {fl.type === 'select' && <input value={fl.options || ''} onChange={e => setF(i, { options: e.target.value })} className={inp} placeholder="الاختيارات بينها فاصلة: ذكر، أنثى" />}
+                                    </div>)}
+                                    <button type="button" onClick={() => setBk({ fields: [...bk.fields, { id: 'f' + Date.now(), label: '', type: 'text', required: false }] })} className="text-sm font-black text-pharaonic">+ إضافة خانة</button>
+                                </div>
+                                <BkServicesAdmin card={card} inp={inp} />
+                                <div className={card}><p className="font-black text-sm">نصوص كارت الحجز</p>
+                                    {Object.entries(BK_TEXTS).map(([k, [ar, en]]) => <div key={k} className="grid md:grid-cols-2 gap-2"><input value={(bk.texts.ar || {})[k] ?? ''} placeholder={ar} onChange={e => setBT('ar', k, e.target.value)} className={inp} /><input value={(bk.texts.en || {})[k] ?? ''} placeholder={en} dir="ltr" onChange={e => setBT('en', k, e.target.value)} className={inp} /></div>)}
+                                    <p className="text-[10px] text-gray-400 font-bold">الخانة الفاضية بتاخد النص الرمادي اللي جواها.</p></div>
+                                <div className={card}><p className="font-black text-sm">قسم "احجز استشارتك أونلاين" في الصفحة الرئيسية</p>
+                                    <Toggle on={d.show.consult !== false} set={v => upObj('show', 'consult', v)} label="إظهار القسم" />
+                                    {[['consultTitle', 'العنوان'], ['consultText', 'النص'], ['consultBtn', 'الزرار']].map(([k, n]) => <div key={k}><p className="text-[11px] font-bold text-gray-500 mb-1">{n}</p><div className="grid md:grid-cols-2 gap-2">{['ar', 'en'].map(lng => <textarea key={lng} rows={k === 'consultText' ? 3 : 1} dir={lng === 'ar' ? 'rtl' : 'ltr'} value={(d.texts[lng] || {})[k] ?? t[lng][k] ?? ''} onChange={e => setText(lng, k, e.target.value)} className={inp} />)}</div></div>)}
+                                    <p className="text-[11px] font-bold text-gray-500">الصورة</p>
+                                    <ImgField slot={SLOTS.consult} value={d.consultImg || ''} onChange={v => up('consultImg', v)} onRemove={() => up('consultImg', '')} />
+                                </div></>; })()}
+
                             {tab === 'general' && <><H t="إعدادات" />
-                                <div className={card}><p className="font-black text-sm">رابط صفحة الحجز</p><p className="text-[11px] text-gray-500 font-bold">كارت الحجز في الموقع بيعرض صفحة الحجز نفسها، فأي تعديل فيها بيظهر هنا لوحده. لو صفحة الحجز مرفوعة في نفس مكان الموقع سيبيه زي ما هو.</p>
-                                    <input value={d.bookingUrl || ''} placeholder="boooking.html" dir="ltr" onChange={e => up('bookingUrl', e.target.value.trim())} className={inp} />
-                                    <a href={bookingUrl(d, {})} target="_blank" rel="noreferrer" className="text-xs font-black text-blue-600">افتح صفحة الحجز ↗</a></div>
+
                                 <div className={card}><p className="font-black text-sm">مفتاح رفع الصور (ImgBB) — اختياري</p><p className="text-[11px] text-gray-500 font-bold">لو Firebase Storage مش متفعّل، الصور بتترفع على ImgBB المجاني. المفتاح بيتحفظ على الجهاز ده بس.</p>
                                     <input defaultValue={localStorage.getItem('imgbbKey') || ''} dir="ltr" onChange={e => localStorage.setItem('imgbbKey', e.target.value.trim())} className={inp} /></div>
                                 <div className={card}><p className="font-black text-sm">باسورد اللوحة</p><button onClick={() => auth.sendPasswordResetEmail(user.email).then(() => alert('اتبعت لينك تغيير الباسورد على ' + user.email)).catch(e => alert(e.message))} className="bg-gray-100 font-black text-sm px-4 py-2 rounded-xl">ابعتيلي لينك تغيير الباسورد</button></div></>}
@@ -732,20 +769,406 @@
             );
         };
 
-        // --- الحجز: نسخة من صفحة الحجز نفسها جوه إطار، فأي تعديل في صفحة الحجز بيظهر هنا لوحده ---
-        const bookingUrl = (cfg, p) => { const base = (cfg.bookingUrl || 'boooking.html').trim(); return base + (base.includes('?') ? '&' : '?') + new URLSearchParams(p).toString(); };
-        const BookingFrame = ({ cfg, lang, tab = 'book', service = '', frameRef }) => {
-            const [h, setH] = useState(720);
-            const ref = useRef();
+        // ===================== كارت الحجز والاستشارة (جوه الموقع) =====================
+        // كل حاجة فيه بتتحكم من لوحة الموقع ← "الحجز والاستشارة". لينك الحجز المباشر: رابط الموقع/#book
+        const BK_TEXTS = {
+            bookTab: ['حجز موعد', 'Book'], consultTab: ['استشارة أونلاين مجانية', 'Free online consultation'], trackTab: ['متابعة بالكود', 'Track by code'],
+            branchStep: ['اختار الفرع', 'Choose a branch'], serviceStep: ['محتاج إيه؟', 'What do you need?'], dateStep: ['اليوم والوقت', 'Date & time'], detailsStep: ['بياناتك', 'Your details'],
+            submit: ['تأكيد الحجز', 'Confirm booking'], costLabel: ['التكلفة المتوقعة', 'Expected cost'], costNote: ['السعر تقريبي وبيتحدد نهائياً بعد الكشف.', 'Approximate — the final price is set after examination.'],
+            success: ['تم الحجز بنجاح!', 'Booked successfully!'], successNote: ['هنكلمك قبل الميعاد للتأكيد. احتفظ بالكود عشان تعدّل أو تلغي.', 'We will call to confirm. Keep the code to change or cancel.'],
+            noTimes: ['مفيش مواعيد متاحة في اليوم ده — جرّب يوم تاني.', 'No available times on this day — try another day.'],
+            consultIntro: ['ابعت سؤالك لدكاترتنا مجاناً، والدكتور المختص هيرد عليك في أقرب وقت. تقدر تتابع الرد بالكود اللي هيظهرلك.', 'Send your question to our doctors for free. Track the reply with the code you get.'],
+            consultSubmit: ['ابعت الاستشارة', 'Send question'], consultDone: ['استشارتك اتبعتت!', 'Question sent!']
+        };
+        const BK_FIELDS_DEFAULT = [
+            { id: 'name', label: 'الاسم بالكامل', labelEn: 'Full name', type: 'text', required: true, system: true },
+            { id: 'phone', label: 'رقم الموبايل', labelEn: 'Mobile number', type: 'tel', required: true, system: true }
+        ];
+        const BK_DEFAULT = { fields: BK_FIELDS_DEFAULT, branchOrder: [], hiddenBranches: [], showMap: true, showCost: true, showServices: true, serviceRequired: false, texts: { ar: {}, en: {} } };
+        const bkCfg = cfg => { const b = { ...BK_DEFAULT, ...(cfg.booking || {}) }; if (!Array.isArray(b.fields) || !b.fields.length) b.fields = BK_FIELDS_DEFAULT; BK_FIELDS_DEFAULT.forEach(f => { if (!b.fields.some(x => x.id === f.id)) b.fields = [f, ...b.fields]; }); b.texts = { ar: {}, en: {}, ...(b.texts || {}) }; return b; };
+        const bkT = (bk, lang, k) => ((bk.texts[lang] || {})[k]) || (BK_TEXTS[k] ? BK_TEXTS[k][lang === 'en' ? 1 : 0] : k);
+        const bkBranches = (bk, branches) => { const ord = bk.branchOrder || []; return branches.filter(b => !(bk.hiddenBranches || []).includes(b.id)).sort((a, b) => { const x = ord.indexOf(a.id), y = ord.indexOf(b.id); return (x < 0 ? 999 : x) - (y < 0 ? 999 : y) || (a.name || '').localeCompare(b.name || '', 'ar'); }); };
+
+        const BK_SLOTS = (() => { const s = []; for (let i = 16; i <= 21; i++) s.push(i + ':00', i + ':30'); s.push('22:00'); return s; })();
+        const bkCode = () => { const c = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let r = ''; for (let i = 0; i < 8; i++) r += c.charAt(Math.floor(Math.random() * c.length)); return r; };
+        const bkDay = () => new Date().toLocaleDateString('en-CA');
+        const bkSlotId = (b, d, date, time) => [b, d || 'none', date, time].join('_');
+        const bkWorks = (doc, branchId, date) => { const days = doc && doc.days && doc.days[branchId]; return !date || !Array.isArray(days) || !days.length || days.includes(new Date(date + 'T00:00:00').getDay()); };
+        const bkNum = x => Number(x) || 0;
+        const bkMapSrc = (b, lang) => {
+            const e = String(b.mapEmbed || '').trim(), m = e.match(/src=["']([^"']+)["']/); if (m) return m[1];
+            if (/^https:\/\/(www\.)?google\.[^/]+\/maps\/embed/.test(e)) return e;
+            const ll = String(b.mapsLink || '').match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+            const q = ll ? ll[1] + ',' + ll[2] : (e || [b.name, b.address].filter(Boolean).join(' ') || 'New Era Dental Center');
+            return 'https://maps.google.com/maps?q=' + encodeURIComponent(q) + '&z=16&hl=' + lang + '&output=embed';
+        };
+        // البيانات العامة اللي الكارت محتاجها (دكاترة للمواعيد بس — مش بيظهروا — وخدمات وتخصصات)
+        const useBookingData = () => {
+            const [st, setSt] = useState({ doctors: [], services: [], specialties: [], ready: false });
             useEffect(() => {
-                const onMsg = e => { if (e.data && e.data.type === 'ne-booking-height' && ref.current && e.source === ref.current.contentWindow) setH(Math.max(420, Math.ceil(e.data.h) + 8)); };
-                window.addEventListener('message', onMsg); return () => window.removeEventListener('message', onMsg);
+                if (!db) return;
+                const map = s => s.docs.map(d => ({ id: d.id, ...d.data() }));
+                const sortO = a => a.sort((x, y) => (x.order ?? 999) - (y.order ?? 999) || (x.name || '').localeCompare(y.name || '', 'ar'));
+                const u = [
+                    db.collection('public_doctors').onSnapshot(s => setSt(p => ({ ...p, doctors: map(s), ready: true })), e => console.error(e)),
+                    db.collection('services').onSnapshot(s => setSt(p => ({ ...p, services: sortO(map(s)) })), e => console.error(e)),
+                    db.collection('specialties').onSnapshot(s => setSt(p => ({ ...p, specialties: sortO(map(s)) })), e => console.error(e))
+                ];
+                return () => u.forEach(f => f());
             }, []);
-            useEffect(() => { if (frameRef) frameRef.current = ref.current; });
-            const src = bookingUrl(cfg, { embed: '1', lang, tab, ...(service ? { service } : {}) });
+            return st;
+        };
+
+        const BookingWidget = ({ cfg, lang, branches, tab: tab0 = 'book', presetService = '', initialCode = '', tabRef }) => {
+            const bk = bkCfg(cfg), L = k => bkT(bk, lang, k), T = (ar, en) => lang === 'en' ? en : ar;
+            const data = useBookingData();
+            const [tab, setTab] = useState(tab0);
+            const [done, setDone] = useState(null);
+            const [editApp, setEditApp] = useState(null);
+            useEffect(() => { if (tabRef) tabRef.current = t => { setTab(t); setDone(null); setEditApp(null); }; });
+            const bl = bkBranches(bk, branches);
+            // الخدمات: من "الخدمات والأسعار" (السيستم/اللوحة). لو لسه فاضية بنستخدم خدمات الموقع
+            const svcList = data.services.filter(s => s.active !== false).length
+                ? data.services.filter(s => s.active !== false).map(s => ({ ...s, label: (lang === 'en' && s.nameEn) || s.name }))
+                : (cfg.services || []).filter(s => !s.hidden).map(s => ({ id: 'site_' + s.id, name: s.title, label: (lang === 'en' && s.titleEn) || s.title, priceFrom: s.priceFrom, priceTo: s.priceTo }));
+            const go = t => { setTab(t); setDone(null); setEditApp(null); };
+            const TABS = [['book', L('bookTab')], ['consult', L('consultTab')], ['track', L('trackTab')]];
             return (
-                <div className="w-full max-w-4xl mx-auto px-3" id="booking-section">
-                    <iframe ref={ref} title="booking" src={src} style={{ height: h }} className="w-full border-0 bg-transparent transition-[height] duration-300" loading="lazy"></iframe>
+                <div className="bg-white w-full rounded-[28px] shadow-2xl border border-gray-100 p-4 sm:p-7" dir={lang === 'en' ? 'ltr' : 'rtl'}>
+                    <div className="flex bg-gray-100 p-1 rounded-2xl mb-6 overflow-x-auto">{TABS.map(([k, n]) => <button key={k} type="button" onClick={() => go(k)} className={`flex-1 px-3 py-2.5 rounded-xl text-xs sm:text-sm font-black whitespace-nowrap transition-all ${tab === k ? 'bg-white shadow text-pharaonic' : 'text-gray-500'}`}>{n}</button>)}</div>
+                    {!bl.length ? <p className="text-center font-bold text-gray-400 p-6 animate-pulse">{T('جاري التحميل...', 'Loading...')}</p>
+                    : done ? <BkDone d={done} lang={lang} L={L} onBack={() => go(done.type === 'consult' ? 'consult' : 'book')} />
+                    : tab === 'book' ? <BkForm key={editApp ? 'e' + editApp.id : 'n'} bk={bk} lang={lang} L={L} branches={bl} data={data} svcList={svcList} presetService={presetService} initial={editApp} onDone={d => setDone({ type: 'booking', ...d })} />
+                    : tab === 'consult' ? <BkConsult lang={lang} L={L} branches={bl} data={data} onDone={d => setDone({ type: 'consult', ...d })} />
+                    : <BkTrack lang={lang} branches={branches} initialCode={initialCode} onEdit={a => { setEditApp(a); setTab('book'); }} />}
+                </div>
+            );
+        };
+
+        const BkStep = ({ n, children }) => <p className="text-sm font-black text-gray-800 mb-2 flex items-center gap-2"><span className="w-6 h-6 rounded-full bg-pharaonic text-white text-xs flex items-center justify-center shrink-0">{n}</span>{children}</p>;
+        const bkInp = "w-full bg-gray-50 border border-gray-200 focus:border-pharaonic p-3 rounded-xl outline-none font-bold transition-colors";
+
+        const BkBranchInfo = ({ b, lang, estimate, showMap }) => {
+            const T = (ar, en) => lang === 'en' ? en : ar;
+            const rows = [
+                b.address && ['📍', T('العنوان', 'Address'), b.address],
+                b.hours && ['🕓', T('مواعيد العمل', 'Working hours'), b.hours],
+                b.waitTime && ['⏳', T('مدة الانتظار المتوقعة', 'Expected waiting time'), b.waitTime],
+                (estimate || b.consultFee) && ['💳', T('التكلفة المتوقعة', 'Expected cost'), estimate || T('الكشف: ', 'Consultation: ') + b.consultFee],
+                b.phone && ['📞', T('تليفون الفرع', 'Branch phone'), <a href={'tel:' + b.phone} dir="ltr" className="underline">{b.phone}</a>]
+            ].filter(Boolean);
+            return (
+                <div className={`grid gap-3 ${showMap ? 'md:grid-cols-2' : ''} animate-fade-in`}>
+                    {showMap && <div className="rounded-2xl overflow-hidden border border-gray-100 bg-gray-100 min-h-[220px] relative"><iframe title="map" src={bkMapSrc(b, lang)} className="absolute inset-0 w-full h-full border-0" loading="lazy" referrerPolicy="no-referrer-when-downgrade" allowFullScreen></iframe></div>}
+                    <div className="bg-gray-50 rounded-2xl p-4 border border-gray-100 space-y-2.5">
+                        <p className="font-black text-gray-900">{T('فرع ', '')}{b.name}</p>
+                        {rows.map(([ic, l, v], i) => <div key={i} className="flex gap-2.5"><span className="shrink-0">{ic}</span><div className="min-w-0"><p className="text-[11px] font-bold text-gray-400">{l}</p><div className="text-sm font-bold text-gray-800 break-words">{v}</div></div></div>)}
+                        {b.mapsLink && <a href={b.mapsLink} target="_blank" rel="noreferrer" className="inline-block text-xs font-black text-blue-600">{T('افتح على جوجل مابس ↗', 'Open in Google Maps ↗')}</a>}
+                    </div>
+                </div>
+            );
+        };
+
+        const BkForm = ({ bk, lang, L, branches, data, svcList, presetService, initial, onDone }) => {
+            const T = (ar, en) => lang === 'en' ? en : ar;
+            const editing = !!(initial && initial.id);
+            const fields = bk.fields.filter(f => !f.hidden || f.system);
+            const [f, setF] = useState(() => ({ branchId: editing ? initial.branchId : (branches.length === 1 ? branches[0].id : ''), serviceIds: [], date: editing ? initial.date : '', time: editing ? initial.time : '', vals: editing ? { name: initial.patientName, phone: initial.phone } : {} }));
+            const [slotsTaken, setSlotsTaken] = useState([]);
+            const [busy, setBusy] = useState(false);
+            const [err, setErr] = useState('');
+            const set = p => setF(x => ({ ...x, ...p }));
+            const preset = useRef(false);
+            useEffect(() => {
+                if (preset.current || !svcList.length) return;
+                const want = editing ? (initial.service || '') : presetService;
+                if (!want && !(editing && (initial.serviceIds || []).length)) return;
+                preset.current = true;
+                const ids = editing && (initial.serviceIds || []).length ? initial.serviceIds.filter(id => svcList.some(s => s.id === id))
+                    : svcList.filter(s => want.split(/[،,]/).map(x => x.trim()).some(w => w && (s.name === w || s.label === w || w.includes(s.name) || s.name.includes(w)))).map(s => s.id).slice(0, editing ? 20 : 1);
+                if (ids.length) set({ serviceIds: ids });
+            }, [svcList.length]);
+            useEffect(() => { if (!f.date || !db) { setSlotsTaken([]); return; } return db.collection('booked_slots').where('date', '==', f.date).onSnapshot(s => setSlotsTaken(s.docs.map(d => d.data())), e => console.error(e)); }, [f.date]);
+
+            const branch = branches.find(b => b.id === f.branchId);
+            const chosen = svcList.filter(s => f.serviceIds.includes(s.id));
+            const specIds = [...new Set(chosen.map(s => s.specialtyId).filter(Boolean))];
+            // الدكاترة مش بيظهروا للمريض: بنختار الدكتور المناسب الفاضي لوحدنا
+            const branchDocs = data.doctors.filter(d => (d.branchIds || []).includes(f.branchId));
+            const fit = specIds.length ? branchDocs.filter(d => specIds.some(id => (d.specs || []).includes(id))) : branchDocs;
+            const pool = (fit.length ? fit : branchDocs).filter(d => bkWorks(d, f.branchId, f.date));
+            const docsForSlots = branchDocs.length ? pool : [{ id: 'any', name: '' }];
+            const own = editing && initial.branchId === f.branchId && initial.date === f.date ? { doc: initial.doctorId, time: initial.time } : null;
+            const taken = new Set(slotsTaken.filter(x => x.branchId === f.branchId).map(x => (x.doctorId || 'none') + '|' + x.time));
+            const freeDocs = time => docsForSlots.filter(d => !taken.has(d.id + '|' + time) || (own && own.doc === d.id && own.time === time));
+            const today = bkDay(), now = new Date();
+            const times = (!f.branchId || !f.date) ? [] : BK_SLOTS.filter(v => { if (f.date === today) { const [h, m] = v.split(':').map(Number); if (h * 60 + m <= now.getHours() * 60 + now.getMinutes() && !(own && own.time === v)) return false; } return freeDocs(v).length > 0; });
+            useEffect(() => { if (f.time && !times.includes(f.time)) set({ time: '' }); }, [slotsTaken, f.branchId, f.date, f.serviceIds.join()]);
+            const lo = chosen.reduce((t, s) => t + bkNum(s.priceFrom), 0), hi = chosen.reduce((t, s) => t + (bkNum(s.priceTo) || bkNum(s.priceFrom)), 0);
+            const money = n => bkNum(n).toLocaleString('en-US') + ' ' + T('ج', 'EGP');
+            const estimate = chosen.length && (lo || hi) ? (hi > lo ? bkNum(lo).toLocaleString('en-US') + ' – ' + money(hi) : money(lo)) : '';
+            const price = s => { const a = bkNum(s.priceFrom), b = bkNum(s.priceTo); if (!a && !b) return ''; return (!b || b === a) ? money(a) : bkNum(a).toLocaleString('en-US') + ' – ' + money(b); };
+            const fmt = v => { const [h, m] = v.split(':').map(Number); return (h % 12 || 12) + ':' + String(m).padStart(2, '0') + ' ' + (h >= 12 ? T('م', 'PM') : T('ص', 'AM')); };
+            const grouped = (() => { const sp = data.specialties; const g = sp.map(x => ({ name: (lang === 'en' && x.nameEn) || x.name, items: svcList.filter(s => s.specialtyId === x.id) })).filter(x => x.items.length); const rest = svcList.filter(s => !sp.some(x => x.id === s.specialtyId)); if (rest.length) g.push({ name: g.length ? T('خدمات تانية', 'Other services') : '', items: rest }); return g; })();
+            let n = 1;
+
+            const submit = async e => {
+                e.preventDefault(); setErr('');
+                if (!f.branchId) return setErr(T('اختار الفرع', 'Choose a branch'));
+                if (bk.showServices && bk.serviceRequired && !chosen.length) return setErr(T('اختار الخدمة', 'Choose a service'));
+                if (!f.time) return setErr(T('اختار اليوم والوقت', 'Choose date & time'));
+                for (const fl of fields) if (fl.required && !String(f.vals[fl.id] || '').trim()) return setErr(T('كمّل خانة: ', 'Please fill: ') + ((lang === 'en' && fl.labelEn) || fl.label));
+                setBusy(true);
+                const extra = {}; fields.filter(fl => !fl.system && String(f.vals[fl.id] || '').trim()).slice(0, 20).forEach(fl => { extra[(fl.label || fl.id).slice(0, 60)] = String(f.vals[fl.id]).trim().slice(0, 500); });
+                const base = { patientName: String(f.vals.name || '').trim().slice(0, 100), phone: String(f.vals.phone || '').trim().slice(0, 30), branchId: f.branchId, service: (chosen.map(s => s.name).join('، ') || T('كشف', 'Checkup')).slice(0, 200), serviceIds: chosen.map(s => s.id).slice(0, 20), estimate: (estimate || (branch && branch.consultFee ? T('الكشف: ', 'Consultation: ') + branch.consultFee : '')).slice(0, 80), extra, date: f.date, time: f.time };
+                // الدكاترة الفاضيين في الميعاد ده — بنجرّب واحد ورا التاني
+                const cands = freeDocs(f.time).sort((a, b) => (own && a.id === own.doc ? -1 : 0) - (own && b.id === own.doc ? -1 : 0) || Math.random() - 0.5);
+                try {
+                    let res = null;
+                    for (const d of cands) {
+                        const sid = bkSlotId(f.branchId, d.id, f.date, f.time), sRef = db.collection('booked_slots').doc(sid);
+                        const full = { ...base, doctorId: d.id, doctorName: d.name || '' };
+                        try {
+                            if (editing) {
+                                const oldSid = bkSlotId(initial.branchId, initial.doctorId, initial.date, initial.time), appRef = db.collection('appointments').doc(initial.id);
+                                const ch = (full.date !== initial.date || full.time !== initial.time || full.doctorId !== (initial.doctorId || '')) ? { rescheduledAt: new Date().toISOString(), rescheduledBy: 'patient', prevDate: initial.date || '', prevTime: initial.time || '', prevDoctorId: initial.doctorId || '', prevDoctorName: initial.doctorName || '' } : {};
+                                await db.runTransaction(async tx => {
+                                    const cur = await tx.get(appRef); if (!cur.exists) throw new Error('GONE');
+                                    if (sid !== oldSid) { if ((await tx.get(sRef)).exists) throw new Error('SLOT_TAKEN'); tx.set(sRef, { branchId: full.branchId, doctorId: full.doctorId, date: full.date, time: full.time, at: Date.now(), appId: initial.id }); }
+                                    tx.update(appRef, { ...full, ...ch });
+                                });
+                                res = { ...initial, ...full };
+                            } else {
+                                for (let i = 0; i < 4 && !res; i++) {
+                                    const code = bkCode(), appRef = db.collection('appointments').doc(), bRef = db.collection('online_bookings').doc(code);
+                                    try {
+                                        await db.runTransaction(async tx => {
+                                            const [bs, ss] = await Promise.all([tx.get(bRef), tx.get(sRef)]);
+                                            if (ss.exists) throw new Error('SLOT_TAKEN'); if (bs.exists) throw new Error('CODE_TAKEN');
+                                            tx.set(appRef, { ...full, bookingCode: code, source: 'online', status: 'unconfirmed', createdAt: new Date().toISOString() });
+                                            tx.set(bRef, { appointmentId: appRef.id });
+                                            tx.set(sRef, { branchId: full.branchId, doctorId: full.doctorId, date: full.date, time: full.time, at: Date.now(), appId: appRef.id });
+                                        });
+                                        res = { id: appRef.id, ...full, bookingCode: code };
+                                    } catch (x) { if (x.message !== 'CODE_TAKEN') throw x; }
+                                }
+                            }
+                        } catch (x) { if (x.message !== 'SLOT_TAKEN') throw x; }
+                        if (res) break;
+                    }
+                    if (!res) { set({ time: '' }); setErr(T('الميعاد ده اتحجز حالاً، اختار وقت تاني', 'This time was just taken, pick another')); }
+                    else onDone({ ...res, edited: editing, branch });
+                } catch (x) { console.error(x); setErr(x.message === 'GONE' ? T('الحجز ده مبقاش موجود', 'Booking no longer exists') : T('حصل خطأ، اتأكد من النت وجرب تاني', 'Something went wrong, check your connection')); }
+                setBusy(false);
+            };
+
+            return (
+                <form onSubmit={submit} className="space-y-6">
+                    {editing && <p className="text-sm font-black text-pharaonic">{T('تعديل الحجز ', 'Editing ')}#{initial.bookingCode}</p>}
+                    {branches.length > 1 && <div><BkStep n={n++}>{L('branchStep')}</BkStep>
+                        <div className="flex flex-wrap gap-2">{branches.map(b => <button key={b.id} type="button" onClick={() => set({ branchId: b.id, time: '' })} className={`px-4 py-2.5 rounded-xl text-sm font-black border-2 transition-all ${f.branchId === b.id ? 'bg-pharaonic text-white border-pharaonic shadow-md' : 'bg-white text-gray-700 border-gray-200 hover:border-pharaonic'}`}>{b.name}</button>)}</div></div>}
+                    {branch && <BkBranchInfo b={branch} lang={lang} showMap={bk.showMap} estimate={bk.showCost && estimate ? estimate + T(' (تقريبي)', ' (approx.)') : ''} />}
+
+                    {branch && bk.showServices && svcList.length > 0 && <div className="animate-fade-in"><BkStep n={n++}>{L('serviceStep')}{!bk.serviceRequired && <span className="text-[11px] text-gray-400 font-bold">{T('(اختياري — تقدر تختار أكتر من خدمة)', '(optional — pick one or more)')}</span>}</BkStep>
+                        <div className="space-y-3">{grouped.map((g, gi) => <div key={gi}>{g.name && <p className="text-[11px] font-black text-gray-400 mb-1.5">{g.name}</p>}
+                            <div className="flex flex-wrap gap-2">{g.items.map(s => { const on = f.serviceIds.includes(s.id); return (
+                                <button key={s.id} type="button" title={s.note || ''} onClick={() => set({ serviceIds: on ? f.serviceIds.filter(x => x !== s.id) : [...f.serviceIds, s.id], time: '' })} className={`text-start px-3 py-2 rounded-xl border-2 transition-all ${on ? 'bg-pharaonic/10 border-pharaonic' : 'bg-white border-gray-200 hover:border-pharaonic/50'}`}>
+                                    <span className="block text-xs font-black text-gray-800">{on ? '✓ ' : ''}{s.label}</span>
+                                    {bk.showCost && price(s) && <span className="block text-[10px] font-bold text-[#B5952F]">{price(s)}{s.duration ? ' • ' + s.duration : ''}</span>}
+                                </button>); })}</div></div>)}</div>
+                        {bk.showCost && estimate && <div className="mt-3 bg-pharaonic/10 border border-pharaonic/30 rounded-2xl p-3 flex items-center justify-between gap-2"><span className="text-sm font-black text-gray-800">{L('costLabel')}</span><span className="text-base font-black text-[#B5952F]">{estimate}</span></div>}
+                        {bk.showCost && estimate && <p className="text-[10px] font-bold text-gray-400 mt-1">{L('costNote')}</p>}
+                    </div>}
+
+                    {branch && <div className="animate-fade-in"><BkStep n={n++}>{L('dateStep')}</BkStep>
+                        <input type="date" required value={f.date} min={today} onChange={e => set({ date: e.target.value, time: '' })} className={bkInp + ' mb-3'} />
+                        {f.date && (times.length ? <div className="grid grid-cols-3 sm:grid-cols-5 gap-2" dir="ltr">{times.map(v => <button key={v} type="button" onClick={() => set({ time: v })} className={`py-2.5 rounded-xl text-xs font-black border-2 transition-all ${f.time === v ? 'bg-pharaonic text-white border-pharaonic shadow' : 'bg-white text-gray-600 border-gray-100 hover:border-pharaonic/50'}`}>{fmt(v)}</button>)}</div>
+                            : <p className="text-sm font-bold text-red-500 bg-red-50 p-3 rounded-xl text-center">{L('noTimes')}</p>)}
+                    </div>}
+
+                    {f.time && <div className="animate-fade-in space-y-3"><BkStep n={n++}>{L('detailsStep')}</BkStep>
+                        {fields.filter(fl => !fl.hidden).map(fl => { const lab = ((lang === 'en' && fl.labelEn) || fl.label) + (fl.required ? ' *' : ''); const v = f.vals[fl.id] || ''; const ch = e => set({ vals: { ...f.vals, [fl.id]: e.target.value } }); const ph = (lang === 'en' && fl.placeholderEn) || fl.placeholder || '';
+                            return <label key={fl.id} className="block"><span className="block text-xs font-black text-gray-500 mb-1">{lab}</span>
+                                {fl.type === 'textarea' ? <textarea rows="3" value={v} onChange={ch} placeholder={ph} maxLength={500} className={bkInp} />
+                                : fl.type === 'select' ? <select value={v} onChange={ch} className={bkInp}><option value="">{T('اختار...', 'Choose...')}</option>{String(fl.options || '').split(/[،,\n]/).map(o => o.trim()).filter(Boolean).map(o => <option key={o} value={o}>{o}</option>)}</select>
+                                : <input type={fl.type === 'number' ? 'number' : fl.type === 'tel' ? 'tel' : 'text'} value={v} onChange={ch} placeholder={ph || (fl.id === 'phone' ? '01xxxxxxxxx' : '')} maxLength={fl.id === 'name' ? 100 : fl.id === 'phone' ? 30 : 500} dir={fl.type === 'tel' ? 'ltr' : undefined} className={bkInp + (fl.type === 'tel' ? ' text-left' : '')} />}
+                            </label>; })}
+                        <button disabled={busy} className="w-full bg-pharaonic text-white font-black py-4 rounded-2xl shadow-lg text-lg hover:bg-[#B5952F] transition-colors disabled:opacity-60">{busy ? '...' : editing ? T('حفظ التعديل', 'Save changes') : L('submit')}</button>
+                    </div>}
+                    {err && <p className="text-sm font-black text-red-600 bg-red-50 rounded-xl p-3 text-center">{err}</p>}
+                </form>
+            );
+        };
+
+        const BkConsult = ({ lang, L, branches, data, onDone }) => {
+            const T = (ar, en) => lang === 'en' ? en : ar;
+            const [f, setF] = useState({ name: '', phone: '', branchId: '', specId: '', question: '' });
+            const [busy, setBusy] = useState(false);
+            const [err, setErr] = useState('');
+            const set = p => setF(x => ({ ...x, ...p }));
+            const submit = async e => {
+                e.preventDefault(); setErr('');
+                if (!f.question.trim() || !f.name.trim() || !f.phone.trim()) return setErr(T('كمّل البيانات', 'Please fill all fields'));
+                setBusy(true);
+                const spec = data.specialties.find(s => s.id === f.specId);
+                // بيروح للدكاترة المناسبين لوحده (من غير ما المريض يختار دكتور)
+                const docs = data.doctors.filter(d => (!f.branchId || (d.branchIds || []).includes(f.branchId)) && (!f.specId || (d.specs || []).includes(f.specId)));
+                const payload = { name: f.name.trim().slice(0, 100), phone: f.phone.trim().slice(0, 30), branchId: f.branchId, topic: spec ? spec.name : 'عام', doctorId: '', doctorName: '', targets: docs.slice(0, 30).map(d => d.id), question: f.question.trim().slice(0, 2000), status: 'new', createdAt: new Date().toISOString() };
+                try {
+                    let code = null;
+                    for (let i = 0; i < 5 && !code; i++) { const c = bkCode(), ref = db.collection('consults').doc(c); try { await db.runTransaction(async tx => { if ((await tx.get(ref)).exists) throw new Error('TAKEN'); tx.set(ref, payload); }); code = c; } catch (x) { if (x.message !== 'TAKEN') throw x; } }
+                    if (!code) throw new Error('TAKEN');
+                    onDone({ code, ...payload });
+                } catch (x) { console.error(x); setErr(T('حصل خطأ، اتأكد من النت وجرب تاني', 'Something went wrong, check your connection')); }
+                setBusy(false);
+            };
+            const chip = (on, label, onClick, key) => <button key={key} type="button" onClick={onClick} className={`px-3.5 py-2 rounded-xl text-xs font-black border-2 ${on ? 'bg-pharaonic text-white border-pharaonic' : 'bg-white text-gray-700 border-gray-200'}`}>{label}</button>;
+            let n = 1;
+            return (
+                <form onSubmit={submit} className="space-y-6">
+                    <p className="text-sm font-bold text-gray-500 leading-relaxed">{L('consultIntro')}</p>
+                    {data.specialties.length > 0 && <div><BkStep n={n++}>{T('الموضوع', 'Topic')}</BkStep><div className="flex flex-wrap gap-2">{chip(!f.specId, T('عام / مش متأكد', 'General / not sure'), () => set({ specId: '' }), 'g')}{data.specialties.map(s => chip(f.specId === s.id, (lang === 'en' && s.nameEn) || s.name, () => set({ specId: s.id }), s.id))}</div></div>}
+                    {branches.length > 1 && <div><BkStep n={n++}>{T('الفرع الأقرب ليك (اختياري)', 'Nearest branch (optional)')}</BkStep><div className="flex flex-wrap gap-2">{chip(!f.branchId, T('أي فرع', 'Any'), () => set({ branchId: '' }), 'a')}{branches.map(b => chip(f.branchId === b.id, b.name, () => set({ branchId: b.id }), b.id))}</div></div>}
+                    <div className="space-y-3"><BkStep n={n++}>{T('سؤالك', 'Your question')}</BkStep>
+                        <textarea rows="5" maxLength={2000} value={f.question} onChange={e => set({ question: e.target.value })} placeholder={T('اشرح المشكلة: فين بالظبط، من إمتى، فيه ألم ولا لأ...', 'Describe the issue: where, since when, any pain...')} className={bkInp} />
+                        <input maxLength={100} value={f.name} onChange={e => set({ name: e.target.value })} placeholder={T('الاسم', 'Name')} className={bkInp} />
+                        <input type="tel" maxLength={30} value={f.phone} onChange={e => set({ phone: e.target.value })} placeholder={T('رقم الموبايل (واتساب)', 'Mobile (WhatsApp)')} dir="ltr" className={bkInp + ' text-left'} />
+                        <button disabled={busy} className="w-full bg-pharaonic text-white font-black py-4 rounded-2xl shadow-lg text-lg hover:bg-[#B5952F] disabled:opacity-60">{busy ? '...' : L('consultSubmit')}</button>
+                    </div>
+                    {err && <p className="text-sm font-black text-red-600 bg-red-50 rounded-xl p-3 text-center">{err}</p>}
+                </form>
+            );
+        };
+
+        const BkTrack = ({ lang, branches, initialCode, onEdit }) => {
+            const T = (ar, en) => lang === 'en' ? en : ar;
+            const [code, setCode] = useState(initialCode || '');
+            const [res, setRes] = useState(null);
+            const [busy, setBusy] = useState(false);
+            const [err, setErr] = useState('');
+            const fmt = v => { if (!v) return ''; const [h, m] = v.split(':').map(Number); return (h % 12 || 12) + ':' + String(m).padStart(2, '0') + ' ' + (h >= 12 ? T('م', 'PM') : T('ص', 'AM')); };
+            const look = async (e, c0) => {
+                e && e.preventDefault(); setErr(''); setRes(null);
+                const c = (c0 || code).toUpperCase().trim();
+                if (!/^[A-Z0-9]{3,12}$/.test(c)) return setErr(T('الكود غلط', 'Invalid code'));
+                setBusy(true);
+                try {
+                    const bk = await db.collection('online_bookings').doc(c).get();
+                    if (bk.exists) { const ap = await db.collection('appointments').doc(bk.data().appointmentId).get(); if (ap.exists) setRes({ type: 'booking', id: ap.id, ...ap.data() }); else setErr(T('مفيش حجز بالكود ده', 'No booking with this code')); }
+                    else { const cs = await db.collection('consults').doc(c).get(); if (cs.exists) setRes({ type: 'consult', id: cs.id, ...cs.data() }); else setErr(T('مفيش حجز ولا استشارة بالكود ده', 'Nothing found with this code')); }
+                } catch (x) { console.error(x); setErr(T('حصل خطأ في البحث', 'Search error')); }
+                setBusy(false);
+            };
+            useEffect(() => { if (initialCode) look(null, initialCode); }, []);
+            const cancel = async () => {
+                if (!confirm(T('إلغاء الموعد نهائياً؟', 'Cancel this appointment?'))) return;
+                setBusy(true);
+                try { await db.collection('appointments').doc(res.id).update({ status: 'canceled', canceledAt: new Date().toISOString(), canceledBy: 'patient' }); setRes({ ...res, status: 'canceled' }); }
+                catch (x) { console.error(x); setErr(T('حصل خطأ في الإلغاء', 'Cancel failed')); }
+                setBusy(false);
+            };
+            const b = res && branches.find(x => x.id === res.branchId);
+            return (
+                <div className="space-y-5">
+                    <form onSubmit={look} className="flex gap-2"><input value={code} onChange={e => setCode(e.target.value)} placeholder={T('اكتب الكود', 'Enter your code')} dir="ltr" className={bkInp + ' text-center font-mono tracking-widest uppercase'} /><button disabled={busy} className="bg-gray-900 text-white px-6 rounded-xl font-black shrink-0">{busy ? '...' : T('بحث', 'Search')}</button></form>
+                    {err && <p className="text-sm font-bold text-red-500 text-center">{err}</p>}
+                    {res && res.type === 'booking' && <div className="bg-gray-50 rounded-2xl p-5 border border-gray-100 space-y-1.5 animate-fade-in">
+                        <p className="font-black text-gray-900 text-lg">{res.patientName}</p>
+                        <p className="text-sm font-bold text-gray-700">📅 {res.date} • {fmt(res.time)}{b ? T(' • فرع ', ' • ') + b.name : ''}</p>
+                        {res.service && <p className="text-sm font-bold text-gray-500">{res.service}</p>}
+                        {res.estimate && <p className="text-sm font-black text-[#B5952F]">{T('التكلفة المتوقعة: ', 'Expected cost: ')}{res.estimate}</p>}
+                        {res.status === 'canceled' ? <p className="text-sm font-black text-red-600">{T('الحجز ده ملغي.', 'This booking is canceled.')}</p>
+                            : <div className="flex gap-2 pt-2"><button type="button" onClick={() => onEdit(res)} className="flex-1 bg-pharaonic text-white py-3 rounded-xl font-black">{T('تعديل الموعد', 'Change')}</button><button type="button" disabled={busy} onClick={cancel} className="px-5 bg-red-50 text-red-600 border border-red-100 py-3 rounded-xl font-black">{T('إلغاء', 'Cancel')}</button></div>}
+                    </div>}
+                    {res && res.type === 'consult' && <div className="space-y-3 animate-fade-in">
+                        <div className="bg-gray-50 rounded-2xl p-4 border border-gray-100"><p className="text-[11px] font-black text-gray-400 mb-1">{T('سؤالك', 'Your question')}{res.topic ? ' • ' + res.topic : ''}</p><p className="text-sm font-bold text-gray-800 whitespace-pre-line">{res.question}</p></div>
+                        {(res.replies || []).length ? res.replies.map((r, i) => <div key={i} className="bg-emerald-50 border border-emerald-100 rounded-2xl p-4"><p className="text-[11px] font-black text-emerald-700 mb-1">{T('رد الدكتور', 'Doctor\'s reply')}</p><p className="text-sm font-bold text-gray-800 whitespace-pre-line">{r.text}</p></div>)
+                            : <p className="text-sm font-bold text-amber-700 bg-amber-50 rounded-2xl p-4 text-center">{T('لسه مفيش رد — الدكتور هيرد عليك قريب. ارجع شوف بنفس الكود.', 'No reply yet — check back soon with the same code.')}</p>}
+                    </div>}
+                </div>
+            );
+        };
+
+        const BkDone = ({ d, lang, L, onBack }) => {
+            const T = (ar, en) => lang === 'en' ? en : ar;
+            const consult = d.type === 'consult', code = consult ? d.code : d.bookingCode;
+            const fmt = v => { if (!v) return ''; const [h, m] = v.split(':').map(Number); return (h % 12 || 12) + ':' + String(m).padStart(2, '0') + ' ' + (h >= 12 ? T('م', 'PM') : T('ص', 'AM')); };
+            return (
+                <div className="text-center space-y-5 animate-fade-in">
+                    <div className="text-5xl">✅</div>
+                    <h2 className="text-2xl font-black text-gray-800">{consult ? L('consultDone') : d.edited ? T('اتعدل الحجز!', 'Booking updated!') : L('success')}</h2>
+                    {!consult && <div className="bg-gray-50 rounded-2xl p-5 text-start space-y-1.5 border border-gray-100">
+                        <p className="font-black text-gray-900">{d.patientName}</p>
+                        <p className="text-sm font-bold text-gray-700">📅 {d.date} • {fmt(d.time)}{d.branch ? T(' • فرع ', ' • ') + d.branch.name : ''}</p>
+                        {d.service && <p className="text-sm font-bold text-gray-500">{d.service}</p>}
+                        {d.estimate && <p className="text-sm font-black text-[#B5952F]">{T('التكلفة المتوقعة: ', 'Expected cost: ')}{d.estimate}</p>}
+                        {d.branch && d.branch.address && <p className="text-xs font-bold text-gray-500">📍 {d.branch.address}</p>}
+                    </div>}
+                    <p className="text-sm font-bold text-gray-500">{consult ? T('الدكتور هيرد عليك في أقرب وقت. تابع الرد من تبويب "متابعة بالكود".', 'A doctor will reply soon. Check it from "Track by code".') : L('successNote')}</p>
+                    <div className="bg-pharaonic/10 border-2 border-dashed border-pharaonic rounded-2xl p-5">
+                        <p className="text-xs font-black text-[#B5952F] mb-1">{consult ? T('كود الاستشارة', 'Consultation code') : T('كود الحجز', 'Booking code')}</p>
+                        <p className="text-3xl font-black font-mono tracking-[0.25em] text-gray-900" dir="ltr">{code}</p>
+                    </div>
+                    <button type="button" onClick={onBack} className="w-full bg-gray-900 text-white py-3.5 rounded-2xl font-black">{T('رجوع', 'Back')}</button>
+                </div>
+            );
+        };
+
+        // ترتيب الفروع وإظهارها في كارت الحجز
+        const BkBranchesAdmin = ({ bk, setBk, card }) => {
+            const [br, setBr] = useState([]);
+            useEffect(() => db ? db.collection('branches').onSnapshot(s => setBr(s.docs.map(x => ({ id: x.id, ...x.data() }))), () => {}) : undefined, []);
+            const ord = bk.branchOrder || [], hid = bk.hiddenBranches || [];
+            const list = [...br].sort((a, b) => { const x = ord.indexOf(a.id), y = ord.indexOf(b.id); return (x < 0 ? 999 : x) - (y < 0 ? 999 : y) || (a.name || '').localeCompare(b.name || '', 'ar'); });
+            const mv = (i, dir) => { const ids = list.map(b => b.id); const j = i + dir; if (j < 0 || j >= ids.length) return; [ids[i], ids[j]] = [ids[j], ids[i]]; setBk({ branchOrder: ids }); };
+            return (
+                <div className={card}><p className="font-black text-sm">الفروع في كارت الحجز</p><p className="text-[11px] text-gray-500 font-bold">رتبيها بالأسهم، واخفي اللي مش عايزاه يظهر للمرضى. بيانات كل فرع (العنوان، المواعيد، الخريطة…) بتتعدل من السيستم ← الإعدادات ← الفروع.</p>
+                    {list.map((b, i) => { const off = hid.includes(b.id); return (
+                        <div key={b.id} className={`flex items-center gap-2 border border-gray-100 rounded-xl p-2.5 ${off ? 'opacity-50' : ''}`}>
+                            <span className="flex gap-1"><button type="button" disabled={i === 0} onClick={() => mv(i, -1)} className="w-7 h-7 rounded-lg bg-gray-100 text-xs disabled:opacity-30">▲</button><button type="button" disabled={i === list.length - 1} onClick={() => mv(i, 1)} className="w-7 h-7 rounded-lg bg-gray-100 text-xs disabled:opacity-30">▼</button></span>
+                            <span className="flex-1 text-sm font-black text-gray-800">{b.name}</span>
+                            <button type="button" onClick={() => setBk({ hiddenBranches: off ? hid.filter(x => x !== b.id) : [...hid, b.id] })} className={`text-xs font-black px-3 py-1.5 rounded-lg ${off ? 'bg-gray-100 text-gray-500' : 'bg-emerald-50 text-emerald-700'}`}>{off ? 'مخفي' : 'ظاهر'}</button>
+                        </div>); })}
+                    {!list.length && <p className="text-xs text-gray-400 font-bold">...</p>}
+                </div>
+            );
+        };
+
+        // الخدمات والأسعار والتخصصات — نفس اللي في السيستم (بتتحفظ على طول)
+        const BkServicesAdmin = ({ card, inp }) => {
+            const [sv, setSv] = useState([]);
+            const [sp, setSp] = useState([]);
+            const [edit, setEdit] = useState(null);
+            const [spName, setSpName] = useState('');
+            useEffect(() => { if (!db) return; const a = db.collection('services').onSnapshot(s => setSv(s.docs.map(x => ({ id: x.id, ...x.data() })).sort((x, y) => (x.order ?? 999) - (y.order ?? 999))), e => console.error(e)); const b = db.collection('specialties').onSnapshot(s => setSp(s.docs.map(x => ({ id: x.id, ...x.data() })).sort((x, y) => (x.order ?? 999) - (y.order ?? 999))), e => console.error(e)); return () => { a(); b(); }; }, []);
+            const err = e => alert('مشكلة: ' + e.message);
+            const save = e => { e.preventDefault(); const f = e.target; const x = { name: f.n.value.trim(), nameEn: f.ne.value.trim(), specialtyId: f.sp.value, priceFrom: Number(f.pf.value) || 0, priceTo: Number(f.pt.value) || 0, duration: f.du.value.trim(), note: f.no.value.trim(), active: f.ac.checked, order: Number(f.or.value) || 0 }; if (!x.name) return; (edit.id ? db.collection('services').doc(edit.id).set(x, { merge: true }) : db.collection('services').add(x)).then(() => setEdit(null)).catch(err); };
+            const price = s => { const a = Number(s.priceFrom) || 0, b = Number(s.priceTo) || 0; if (!a && !b) return 'حسب الحالة'; return (!b || b === a) ? a.toLocaleString('en-US') + ' ج' : a.toLocaleString('en-US') + ' – ' + b.toLocaleString('en-US') + ' ج'; };
+            return (
+                <div className={card}>
+                    <p className="font-black text-sm">الخدمات والأسعار</p>
+                    <p className="text-[11px] text-gray-500 font-bold">دي نفس قايمة "الخدمات والأسعار" اللي في السيستم — أي تعديل هنا بيتحفظ على طول ويظهر هناك وفي الحجز. لو القايمة فاضية، الحجز بيعرض خدمات الموقع من غير أسعار.</p>
+                    <div className="border border-gray-100 rounded-xl p-3 space-y-2"><p className="text-xs font-black text-gray-600">التخصصات (بتستخدم عشان الحجز يروح للدكتور المناسب)</p>
+                        <div className="flex flex-wrap gap-1.5">{sp.map(x => <span key={x.id} className="inline-flex items-center gap-1 bg-gray-100 rounded-lg px-2 py-1 text-xs font-bold">{x.name}<button type="button" onClick={() => { const n = prompt('اسم التخصص', x.name); if (n && n.trim()) db.collection('specialties').doc(x.id).update({ name: n.trim() }).catch(err); }} className="text-gray-400">✏️</button><button type="button" onClick={() => confirm('حذف ' + x.name + '؟') && db.collection('specialties').doc(x.id).delete().catch(err)} className="text-red-400">✕</button></span>)}</div>
+                        <div className="flex gap-2"><input value={spName} onChange={e => setSpName(e.target.value)} className={inp} placeholder="تخصص جديد" /><button type="button" onClick={() => { if (!spName.trim()) return; db.collection('specialties').add({ name: spName.trim(), order: sp.length + 1 }).then(() => setSpName('')).catch(err); }} className="bg-gray-900 text-white px-3 rounded-lg text-xs font-black shrink-0">إضافة</button></div></div>
+                    {sv.map(s => <div key={s.id} className={`flex items-center gap-2 border border-gray-100 rounded-xl p-2.5 ${s.active === false ? 'opacity-50' : ''}`}>
+                        <div className="flex-1 min-w-0"><p className="text-sm font-black text-gray-800 truncate">{s.name}</p><p className="text-[11px] font-bold text-[#B5952F]">{price(s)}{(sp.find(x => x.id === s.specialtyId) || {}).name ? ' • ' + sp.find(x => x.id === s.specialtyId).name : ''}</p></div>
+                        <button type="button" onClick={() => setEdit(s)} className="text-xs font-black bg-gray-100 px-2.5 py-1.5 rounded-lg">✏️ تعديل</button>
+                        <button type="button" onClick={() => confirm('حذف ' + s.name + '؟') && db.collection('services').doc(s.id).delete().catch(err)} className="text-xs font-black text-red-500 px-1">حذف</button>
+                    </div>)}
+                    <button type="button" onClick={() => setEdit({ active: true })} className="text-sm font-black text-pharaonic">+ إضافة خدمة</button>
+                    {edit && <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setEdit(null)}>
+                        <form onSubmit={save} onClick={e => e.stopPropagation()} className="bg-white rounded-2xl w-full max-w-md p-5 space-y-2.5">
+                            <p className="font-black">{edit.id ? 'تعديل خدمة' : 'خدمة جديدة'}</p>
+                            <input name="n" defaultValue={edit.name} required placeholder="اسم الخدمة" className={inp} />
+                            <input name="ne" defaultValue={edit.nameEn} dir="ltr" placeholder="Service name (English)" className={inp} />
+                            <select name="sp" defaultValue={edit.specialtyId || ''} className={inp}><option value="">— بدون تخصص —</option>{sp.map(x => <option key={x.id} value={x.id}>{x.name}</option>)}</select>
+                            <div className="grid grid-cols-2 gap-2"><input name="pf" type="number" min="0" defaultValue={edit.priceFrom || ''} placeholder="السعر من" className={inp} /><input name="pt" type="number" min="0" defaultValue={edit.priceTo || ''} placeholder="لحد (اختياري)" className={inp} /></div>
+                            <div className="grid grid-cols-2 gap-2"><input name="du" defaultValue={edit.duration} placeholder="المدة (اختياري)" className={inp} /><input name="or" type="number" defaultValue={edit.order || ''} placeholder="الترتيب" className={inp} /></div>
+                            <input name="no" defaultValue={edit.note} placeholder="ملاحظة للمريض (اختياري)" className={inp} />
+                            <label className="flex items-center gap-2 text-xs font-black"><input name="ac" type="checkbox" defaultChecked={edit.active !== false} /> ظاهرة في الحجز</label>
+                            <div className="flex gap-2"><button className="flex-1 bg-pharaonic text-white py-2.5 rounded-xl font-black">حفظ</button><button type="button" onClick={() => setEdit(null)} className="px-4 bg-gray-100 rounded-xl font-black">إلغاء</button></div>
+                        </form></div>}
                 </div>
             );
         };
@@ -848,8 +1271,11 @@
             const [cfg, setCfg] = useState(DEFAULT_CFG);
             const [cfgLoaded, setCfgLoaded] = useState(!db);
             const [isAdmin, setIsAdmin] = useState(location.hash === '#admin');
+            // لينك الحجز المباشر: #book أو #consult أو #track=الكود
+            const bkRouteOf = () => { const h = location.hash.replace('#', ''); const [k, v] = h.split('='); return ['book', 'consult', 'track'].includes(k) ? { tab: k, code: v || '' } : null; };
+            const [bkRoute, setBkRoute] = useState(bkRouteOf);
             useEffect(() => {
-                const h = () => setIsAdmin(location.hash === '#admin');
+                const h = () => { setIsAdmin(location.hash === '#admin'); setBkRoute(bkRouteOf()); };
                 window.addEventListener('hashchange', h);
                 return () => window.removeEventListener('hashchange', h);
             }, []);
@@ -879,7 +1305,7 @@
 
             // الفروع من قاعدة البيانات (نفس فروع السيستم). لو حصل خطأ بنعيد المحاولة لوحدنا
             const [brStatus, setBrStatus] = useState(db ? 'loading' : 'error');
-            const bookFrame = useRef(null);
+            const bookTab = useRef(null);
             const [brTry, setBrTry] = useState(0);
             useEffect(() => {
                 if (!db) return;
@@ -922,6 +1348,16 @@
             const activeService = SVC.find(s => s.id === currentView);
 
             if (isAdmin) return cfgLoaded ? <Admin cfg={cfg} /> : <div className="p-10 text-center font-bold">...</div>;
+            if (bkRoute) return (
+                <div className="min-h-screen bg-[#FDFCFB] pb-12" dir={isRtl ? 'rtl' : 'ltr'}>
+                    <div className="bg-white border-b border-gray-100 shadow-sm"><div className="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
+                        <a href="#" onClick={() => { location.hash = ''; }} className="flex items-center gap-2"><img src="https://i.ibb.co/qLw7Tcqv/logo-Dr-shahenda-original.png" alt="New Era" className="h-10" /><span className="font-black text-gray-900 hidden sm:inline">NEW ERA DENTAL CENTER</span></a>
+                        <div className="flex items-center gap-2"><button type="button" onClick={() => setLang(lang === 'ar' ? 'en' : 'ar')} className="text-xs font-black bg-gray-100 px-3 py-1.5 rounded-lg">{lang === 'ar' ? 'English' : 'عربي'}</button>
+                            <a href="#" onClick={() => { location.hash = ''; }} className="text-xs font-black text-pharaonic">{isRtl ? 'الموقع ←' : '← Website'}</a></div>
+                    </div></div>
+                    <div className="max-w-3xl mx-auto px-3 pt-6"><BookingWidget key={bkRoute.tab + bkRoute.code + lang} cfg={cfg} lang={lang} branches={dbBranches} tab={bkRoute.tab} initialCode={bkRoute.code} /></div>
+                </div>
+            );
 
             return (
                 <div>
@@ -1141,16 +1577,16 @@
                             <div className="space-y-4 text-center md:text-start">
                                 <h2 className="text-3xl md:text-4xl font-black text-gray-900">{l.consultTitle}</h2>
                                 <p className="text-gray-600 font-bold leading-relaxed">{l.consultText}</p>
-                                <button type="button" onClick={() => { try { bookFrame.current && bookFrame.current.contentWindow.postMessage({ type: 'ne-booking-tab', tab: 'consult' }, '*'); } catch (e) {} const el = document.getElementById('booking-section'); el && el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }}
+                                <button type="button" onClick={() => { bookTab.current && bookTab.current('consult'); const el = document.getElementById('booking-section'); el && el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }}
                                     className="inline-flex bg-pharaonic text-white px-8 py-3.5 rounded-full font-black text-lg hover:bg-[#B5952F] transition-all shadow-lg">{l.consultBtn}</button>
                             </div>
-                            <div className="hidden md:flex justify-center"><div className="w-48 h-48 rounded-full bg-pharaonic/10 flex items-center justify-center text-7xl">💬</div></div>
+                            <div className="flex justify-center">{cfg.consultImg ? <img src={cfg.consultImg} alt="" loading="lazy" className="w-full max-w-sm rounded-[28px] shadow-xl object-cover" /> : <div className="hidden md:flex w-48 h-48 rounded-full bg-pharaonic/10 items-center justify-center text-7xl">💬</div>}</div>
                         </div>
                         </FadeUp>
                     </section>}
 
                     {show('booking') && <section className="py-12 bg-[#FDFCFB] relative">
-                        <BookingFrame cfg={cfg} lang={lang} frameRef={bookFrame} />
+                        <div className="w-full max-w-3xl mx-auto px-3" id="booking-section"><BookingWidget cfg={cfg} lang={lang} branches={dbBranches} tabRef={bookTab} /></div>
                     </section>}
                     </main>
                 ) : (
@@ -1192,7 +1628,7 @@
                             {show('vision') && <VisionMissionSection l={l} isRtl={isRtl} />}
                         </div>
 
-                        {show('booking') && <BookingFrame key={activeService.id} cfg={cfg} lang={lang} service={((cfg.services || []).find(x => x.id === activeService.id) || {}).title || activeService.title} />}
+                        {show('booking') && <div className="w-full max-w-3xl mx-auto px-3" id="booking-section"><BookingWidget key={activeService.id + lang} cfg={cfg} lang={lang} branches={dbBranches} presetService={((cfg.services || []).find(x => x.id === activeService.id) || {}).title || activeService.title} /></div>}
                     </div>
                     </main>
                 )}
