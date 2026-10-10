@@ -762,7 +762,9 @@
                                 if ((await tx.get(sRef)).exists) throw new Error('SLOT_TAKEN');
                                 tx.set(sRef, { branchId: base.branchId, doctorId: base.doctorId, date: base.date, time: base.time, at: Date.now(), appId: currentApp.id });
                             }
-                            tx.update(appRef, base);
+                            const ch = (base.date !== currentApp.date || base.time !== currentApp.time || base.doctorId !== (currentApp.doctorId || ''))
+                                ? { rescheduledAt: new Date().toISOString(), rescheduledBy: 'patient', prevDate: currentApp.date || '', prevTime: currentApp.time || '', prevDoctorId: currentApp.doctorId || '', prevDoctorName: currentApp.doctorName || '' } : {};
+                            tx.update(appRef, { ...base, ...ch });
                         });
                         setBookingCode(currentApp.bookingCode);
                     } else {
