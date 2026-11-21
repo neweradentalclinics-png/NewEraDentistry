@@ -1,7 +1,7 @@
 // صفحات حقيقية لجوجل: صفحة لكل فرع وصفحة لكل خدمة + sitemap.xml
 // البيانات بتتسحب من نفس قاعدة البيانات (الفروع من السيستم، الخدمات والأسئلة من لوحة الموقع)
 // والصفحة بتتخزن على سيرفرات Vercel ساعة، فأي تعديل في البيانات بيبان خلال ساعة بالكتير.
-const { SVC_SLUG, AREA_SLUG, S } = require('./_content.js');
+const { SVC_SLUG, AREA_SLUG, TITLE_SLUG, S } = require('./_content.js');
 
 const PROJECT = 'new-era-dental-center';
 const FS = `https://firestore.googleapis.com/v1/projects/${PROJECT}/databases/(default)/documents`;
@@ -9,7 +9,7 @@ const SITE = 'https://neweradentalcenter.com';
 const BRAND = 'نيو إيرا لطب الأسنان';
 const BRAND_EN = 'New Era Dental Center';
 const LOGO = 'https://i.ibb.co/qLw7Tcqv/logo-Dr-shahenda-original.png';
-const PAGES_VERSION = '1.0';
+const PAGES_VERSION = '1.1';
 
 // ---------- قراءة قاعدة البيانات ----------
 const val = v => {
@@ -64,12 +64,13 @@ function branchSlug(b) {
 function svcSlug(s) {
   if (s.slug && latin(s.slug)) return latin(s.slug);
   if (SVC_SLUG[s.id]) return SVC_SLUG[s.id];
-  const t = String(s.title || '');
-  if (/عصب/.test(t)) return 'root-canal';
+  const t = String(s.title || ''), hit = TITLE_SLUG.find(([re]) => re.test(t));
+  if (hit) return hit[1];
   return latin(s.titleEn) || latin(s.id) || 'service';
 }
 const areaName = b => String(b.name || '').replace(/^فرع\s*/, '').trim();
-const contentFor = s => S[s.id] || (/عصب/.test(s.title || '') ? S['root-canal'] : null);
+const SLUG_CONTENT = Object.fromEntries(Object.entries(SVC_SLUG).map(([id, sl]) => [sl, id]).concat([['veneers', 'veneers']]));
+const contentFor = s => S[s.id] || S[SLUG_CONTENT[svcSlug(s)]] || null;
 
 // ---------- أدوات ----------
 const esc = s => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
