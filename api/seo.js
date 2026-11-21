@@ -9,7 +9,7 @@ const SITE = 'https://neweradentalcenter.com';
 const BRAND = 'نيو إيرا لطب الأسنان';
 const BRAND_EN = 'New Era Dental Center';
 const LOGO = 'https://i.ibb.co/qLw7Tcqv/logo-Dr-shahenda-original.png';
-const PAGES_VERSION = '1.2';
+const PAGES_VERSION = '1.3';
 
 // ---------- قراءة قاعدة البيانات ----------
 const val = v => {
@@ -220,7 +220,7 @@ function branchPage(b, data) {
     [`فين أقرب دكتور أسنان في ${area}؟`, `${BRAND} فرع ${area}${b.address ? ' في ' + b.address : ''}. تقدر تفتح المكان على خرائط جوجل من الخريطة اللي في الصفحة وتحجز أونلاين.`],
     hours && [`مواعيد عيادة الأسنان في ${area} إيه؟`, `مواعيد العمل: ${hours}. ويفضّل الحجز المسبق عشان ميكونش في انتظار.`],
     b.consultFee && [`سعر كشف الأسنان في ${area} كام؟`, `سعر الكشف في فرع ${area}: ${b.consultFee}. وبعد الكشف بتاخد خطة علاج مكتوبة فيها التكلفة المتوقعة.`],
-    ...priced.slice(0, 3).map(s => [`سعر ${s.kw} في ${area} كام؟`, `أسعار ${s.kw} تبدأ من ${money(s.price.min)}، والسعر النهائي بيتحدد بعد الكشف حسب حالتك.`]),
+    ...priced.filter(s => COMBO.includes(s.key)).sort((x, y) => COMBO.indexOf(x.key) - COMBO.indexOf(y.key)).slice(0, 4).map(s => [`سعر ${s.kw} في ${area} كام؟`, `أسعار ${s.kw} تبدأ من ${money(s.price.min)}، والسعر النهائي بيتحدد بعد الكشف حسب حالتك.`]),
     near.length && [`الفرع قريب من ${joinAr(near)}؟`, `أيوه، فرع ${area} قريب من ${joinAr(near)}. افتح الخريطة في الصفحة وشوف أسهل طريق ليك.`],
     [`إزاي أحجز في عيادة ${area}؟`, `من زرار "احجز موعدك" تختار فرع ${area} واليوم والوقت، أو تكلمنا${ph[0] ? ' على ' + ph[0] : ''} أو تبعتلنا واتساب.`]
   ].filter(Boolean);
