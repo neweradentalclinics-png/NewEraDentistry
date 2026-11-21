@@ -1,0 +1,6 @@
+{
+  "rewrites": [
+    { "source": "/sitemap.xml", "destination": "/api/seo?sitemap=1" },
+    { "source": "/:slug([a-z0-9][a-z0-9-]*)", "destination": "/api/seo?slug=:slug" }
+  ]
+}
