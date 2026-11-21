@@ -1,7 +1,7 @@
-// صفحات حقيقية لجوجل: صفحة لكل فرع وصفحة لكل خدمة + sitemap.xml
-// البيانات بتتسحب من نفس قاعدة البيانات (الفروع من السيستم، الخدمات والأسئلة من لوحة الموقع)
-// والصفحة بتتخزن على سيرفرات Vercel ساعة، فأي تعديل في البيانات بيبان خلال ساعة بالكتير.
-const { SVC_SLUG, AREA_SLUG, TITLE_SLUG, S } = require('./_content.js');
+// صفحات حقيقية لجوجل: صفحة لكل فرع، صفحة لكل خدمة، وصفحة لكل "خدمة + فرع" (زي: زراعة أسنان حلوان) + sitemap.xml
+// البيانات بتتسحب من نفس قاعدة البيانات: الفروع والأسعار من السيستم، الخدمات والأسئلة من لوحة الموقع.
+// الصفحة بتتخزن على سيرفرات Vercel ساعة، فأي تعديل في البيانات بيبان خلال ساعة بالكتير.
+const { SVC_SLUG, AREA_SLUG, TITLE_SLUG, S, KW_TITLE, PRICE_RE, EXTRA, COMBO, NEAR } = require('./_content.js');
 
 const PROJECT = 'new-era-dental-center';
 const FS = `https://firestore.googleapis.com/v1/projects/${PROJECT}/databases/(default)/documents`;
@@ -9,7 +9,7 @@ const SITE = 'https://neweradentalcenter.com';
 const BRAND = 'نيو إيرا لطب الأسنان';
 const BRAND_EN = 'New Era Dental Center';
 const LOGO = 'https://i.ibb.co/qLw7Tcqv/logo-Dr-shahenda-original.png';
-const PAGES_VERSION = '1.1';
+const PAGES_VERSION = '1.2';
 
 // ---------- قراءة قاعدة البيانات ----------
 const val = v => {
@@ -25,42 +25,19 @@ const val = v => {
 };
 const obj = f => Object.fromEntries(Object.entries(f || {}).map(([k, v]) => [k, val(v)]));
 const getJSON = async (url, opt) => { const r = await fetch(url, opt); if (!r.ok) throw new Error(url + ' ' + r.status); return r.json(); };
-
-let CACHE = { t: 0, data: null };
-async function loadData() {
-  if (CACHE.data && Date.now() - CACHE.t < 5 * 60 * 1000) return CACHE.data;
-  const [siteDoc, brs, faqRows] = await Promise.all([
-    getJSON(`${FS}/settings/site`).catch(() => null),
-    getJSON(`${FS}/branches?pageSize=100`).catch(() => ({ documents: [] })),
-    getJSON(`${FS}:runQuery`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ structuredQuery: { from: [{ collectionId: 'faqs' }], where: { fieldFilter: { field: { fieldPath: 'published' }, op: 'EQUAL', value: { booleanValue: true } } }, limit: 400 } })
-    }).catch(() => [])
-  ]);
-  const cfg = siteDoc ? obj(siteDoc.fields) : {};
-  const branches = (brs.documents || []).map(d => ({ id: d.name.split('/').pop(), ...obj(d.fields) }))
-    .filter(b => b.name && b.active !== false && b.hidden !== true)
-    .sort((a, b) => (a.order ?? 999) - (b.order ?? 999) || String(a.name).localeCompare(String(b.name), 'ar'));
-  const faqs = (Array.isArray(faqRows) ? faqRows : []).filter(r => r.document).map(r => obj(r.document.fields)).filter(f => f.q && f.a);
-  const usedB = new Set();
-  branches.forEach(b => { let s = branchSlug(b); while (usedB.has(s)) s += '-2'; usedB.add(s); b.slug = s; });
-  const services = (Array.isArray(cfg.services) && cfg.services.length ? cfg.services : Object.keys(S).filter(k => !['rootcanal', 'endo'].includes(k)).map(id => ({ id, title: S[id].kw })))
-    .filter(s => s && s.id && !s.hidden && (s.title || (S[s.id] && S[s.id].kw)));
-  const usedS = new Set(branches.map(b => b.slug));
-  services.forEach(s => { let sl = svcSlug(s); while (usedS.has(sl)) sl += '-2'; usedS.add(sl); s.slug = sl; });
-  const data = { cfg, branches, services, faqs };
-  CACHE = { t: Date.now(), data };
-  return data;
-}
+const listAll = async col => { let out = [], tok = ''; for (let i = 0; i < 10; i++) { const j = await getJSON(`${FS}/${col}?pageSize=300${tok ? '&pageToken=' + encodeURIComponent(tok) : ''}`); out = out.concat(j.documents || []); if (!j.nextPageToken) break; tok = j.nextPageToken; } return out; };
 
 // ---------- الروابط ----------
 const latin = s => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+const areaHit = b => AREA_SLUG.find(([ar]) => String(b.name || '').includes(ar));
 function branchSlug(b) {
   if (b.slug && latin(b.slug)) return latin(b.slug);
-  const n = String(b.name || '');
-  const hit = AREA_SLUG.find(([ar]) => n.includes(ar));
+  const hit = areaHit(b);
   return hit ? hit[1] : 'branch-' + latin(b.id).slice(0, 12);
 }
+// اسم المنطقة القصير للعناوين (الإخصاص - الصف ← الصف)
+const areaOf = b => { const h = areaHit(b); return h ? h[0].replace(/^اكتوبر$/, 'أكتوبر') : String(b.name || '').replace(/^فرع\s*/, '').trim(); };
+const fullArea = b => String(b.name || '').replace(/^فرع\s*/, '').trim();
 function svcSlug(s) {
   if (s.slug && latin(s.slug)) return latin(s.slug);
   if (SVC_SLUG[s.id]) return SVC_SLUG[s.id];
@@ -68,9 +45,56 @@ function svcSlug(s) {
   if (hit) return hit[1];
   return latin(s.titleEn) || latin(s.id) || 'service';
 }
-const areaName = b => String(b.name || '').replace(/^فرع\s*/, '').trim();
-const SLUG_CONTENT = Object.fromEntries(Object.entries(SVC_SLUG).map(([id, sl]) => [sl, id]).concat([['veneers', 'veneers']]));
-const contentFor = s => S[s.id] || S[SLUG_CONTENT[svcSlug(s)]] || null;
+const SLUG_KEY = Object.fromEntries(Object.entries(SVC_SLUG).filter(([id]) => S[id] && !['rootcanal', 'endo'].includes(id)).map(([id, sl]) => [sl, id]).concat([['veneers', 'veneers'], ['root-canal', 'root-canal'], ['clear-aligners', 'clear-aligners']]));
+const keyOf = s => (S[s.id] && !['rootcanal', 'endo'].includes(s.id)) ? s.id : (SLUG_KEY[s.slug || svcSlug(s)] || s.id);
+
+let CACHE = { t: 0, data: null };
+async function loadData() {
+  if (CACHE.data && Date.now() - CACHE.t < 5 * 60 * 1000) return CACHE.data;
+  const [siteDoc, brs, faqRows, prices] = await Promise.all([
+    getJSON(`${FS}/settings/site`).catch(() => null),
+    listAll('branches').catch(() => []),
+    getJSON(`${FS}:runQuery`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ structuredQuery: { from: [{ collectionId: 'faqs' }], where: { fieldFilter: { field: { fieldPath: 'published' }, op: 'EQUAL', value: { booleanValue: true } } }, limit: 400 } })
+    }).catch(() => []),
+    listAll('services').catch(() => [])
+  ]);
+  const cfg = siteDoc ? obj(siteDoc.fields) : {};
+  const branches = brs.map(d => ({ id: d.name.split('/').pop(), ...obj(d.fields) }))
+    .filter(b => b.name && b.active !== false && b.hidden !== true)
+    .sort((a, b) => (a.order ?? 999) - (b.order ?? 999) || String(a.name).localeCompare(String(b.name), 'ar'));
+  const faqs = (Array.isArray(faqRows) ? faqRows : []).filter(r => r.document).map(r => obj(r.document.fields)).filter(f => f.q && f.a);
+  const priceList = prices.map(d => obj(d.fields)).filter(p => p.name && p.active !== false && num(p.priceFrom) > 0);
+  const used = new Set();
+  const uniq = sl => { let x = sl; while (used.has(x)) x += '-2'; used.add(x); return x; };
+  branches.forEach(b => { b.slug = uniq(branchSlug(b)); b.area = areaOf(b); });
+  let services = (Array.isArray(cfg.services) && cfg.services.length ? cfg.services : ['exam', 'xray', 'fillings', 'fixed-prosthetics', 'removable-prosthetics', 'ortho', 'implants', 'kids', 'whitening', 'jaw-surgery', 'hollywood'].map(id => ({ id, title: S[id].kw })))
+    .filter(s => s && s.id && !s.hidden && (s.title || (S[s.id] && S[s.id].kw)))
+    .map(s => ({ ...s }));
+  services.forEach(s => { s.slug = uniq(svcSlug(s)); s.key = keyOf(s); });
+  EXTRA.forEach(x => { if (!services.some(s => s.key === x.id || s.slug === x.slug)) { const s = { id: x.id, title: x.title, slug: uniq(x.slug), key: x.id, extra: true }; services.push(s); } });
+  services.forEach(s => { s.kw = KW_TITLE[s.key] || s.title; s.price = priceOf(s.key, priceList); });
+  const combos = [];
+  COMBO.forEach(k => { const s = services.find(x => x.key === k); if (s) branches.forEach(b => combos.push({ s, b, slug: uniq(s.slug + '-' + b.slug) })); });
+  const data = { cfg, branches, services, faqs, combos };
+  CACHE = { t: Date.now(), data };
+  return data;
+}
+
+// ---------- الأسعار (من "الخدمات والأسعار" في السيستم) ----------
+const num = v => { const n = Number(String(v == null ? '' : v).replace(/[^\d.]/g, '')); return isFinite(n) ? n : 0; };
+const money = n => num(n).toLocaleString('en-US') + ' جنيه';
+function priceOf(key, list) {
+  const re = PRICE_RE[key]; if (!re) return null;
+  let items = list.filter(p => re.test(String(p.name)));
+  if (key === 'ortho') items = items.filter(p => !PRICE_RE['clear-aligners'].test(String(p.name))).concat(items.filter(p => PRICE_RE['clear-aligners'].test(String(p.name))));
+  if (!items.length) return null;
+  const min = Math.min(...items.map(p => num(p.priceFrom)));
+  return { min, items: items.slice(0, 8) };
+}
+const priceText = p => { const a = num(p.priceFrom), b = num(p.priceTo); return (!b || b === a) ? money(a) : a.toLocaleString('en-US') + ' – ' + money(b); };
+const fromTxt = s => s.price ? `تبدأ من ${money(s.price.min)}` : '';
 
 // ---------- أدوات ----------
 const esc = s => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -79,6 +103,7 @@ const joinAr = a => a.length <= 1 ? (a[0] || '') : a.slice(0, -1).join('، ') + 
 const telOf = p => String(p || '').replace(/[^\d+]/g, '').replace(/^0/, '+20');
 const waOf = cfg => 'https://wa.me/' + String(cfg.whatsapp || '201121593393').replace(/\D/g, '');
 const phonesOf = (cfg, b) => [...new Set([b && b.phone, ...((cfg.phones || []))].filter(Boolean).map(String))];
+const hoursOf = (cfg, b) => (b && b.hours) || (cfg.hours && cfg.hours.ar) || '';
 const mapSrc = b => {
   const e = String(b.mapEmbed || '').trim();
   const m = e.match(/src=["']([^"']+)["']/); if (m) return m[1];
@@ -94,6 +119,9 @@ const faqForSvc = (f, sv) => {
   const ti = faqNorm(sv.title) + ' ' + faqNorm(sv.titleEn);
   return ti.split(/\s+/).some(w => { w = w.replace(/^ال/, ''); return w.length >= 3 && (tp.includes(w) || w.includes(tp)); });
 };
+const nearOf = b => NEAR[b.slug] || [];
+const comboFor = (data, s, b) => data.combos.find(c => c.s === s && c.b === b);
+const descOf = s => s.desc || (S[s.key] || {}).desc || '';
 
 // ---------- الشكل ----------
 const CSS = `*{box-sizing:border-box}body{margin:0;font-family:Tajawal,system-ui,sans-serif;background:#FDFCFB;color:#1f2937;line-height:1.9;font-size:16px}a{color:#B8941F}
@@ -116,6 +144,9 @@ details{border-bottom:1px solid #f1f1f1;padding:10px 0}summary{font-weight:800;c
 footer{background:#111827;color:#9ca3af;padding:22px 0;margin-top:20px;font-size:14px}footer a{color:#e5e7eb;text-decoration:none;margin-inline-end:12px;line-height:2.2}footer .v{font-size:11px;color:#4b5563;margin-top:8px}
 ol,ul{margin:0 0 10px;padding-inline-start:22px}@media(max-width:640px){.hero h1{font-size:24px}nav a:not(.b){display:none}section{padding:16px}}`;
 
+const CSS2 = `.price{display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:#FFFBEB;border:1px solid #FDE68A;border-radius:16px;padding:14px 16px;margin:4px 0 12px}
+.price b{font-size:22px;color:#92400e}.price small{color:#92400e;font-weight:700}.ptable{width:100%;border-collapse:collapse;font-size:15px}.ptable td{padding:8px 4px;border-bottom:1px solid #f3f3f3}.ptable td:last-child{text-align:left;font-weight:800;white-space:nowrap}.note{font-size:13px;color:#6b7280}`;
+
 function layout({ title, desc, path, h1, lead, crumb, body, schema, data, image }) {
   const { cfg, branches, services } = data;
   const ph = phonesOf(cfg)[0];
@@ -124,12 +155,12 @@ function layout({ title, desc, path, h1, lead, crumb, body, schema, data, image 
 <title>${esc(title)}</title><meta name="description" content="${esc(desc)}"><link rel="canonical" href="${url}">
 <meta property="og:type" content="website"><meta property="og:title" content="${esc(title)}"><meta property="og:description" content="${esc(desc)}"><meta property="og:url" content="${url}"><meta property="og:locale" content="ar_EG"><meta property="og:image" content="${esc(image || LOGO)}">
 <link rel="icon" href="${LOGO}"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@500;700;800;900&display=swap" rel="stylesheet">
-<style>${CSS}</style>${schema.map(s => `<script type="application/ld+json">${JSON.stringify(s).replace(/</g, '\\u003c')}</script>`).join('')}</head><body>
+<style>${CSS}${CSS2}</style>${schema.map(s => `<script type="application/ld+json">${JSON.stringify(s).replace(/</g, '\\u003c')}</script>`).join('')}</head><body>
 <header><div class="w"><a href="/"><img src="${LOGO}" alt="${BRAND}" width="120" height="42"></a><nav><a href="/">الرئيسية</a><a href="/#services">الخدمات</a>${ph ? `<a href="tel:${telOf(ph)}">اتصل بنا</a>` : ''}<a class="b" href="/#book">احجز موعد</a></nav></div></header>
 <div class="hero"><div class="w"><div class="crumb">${crumb}</div><h1>${esc(h1)}</h1><p>${esc(lead)}</p>
 <div class="cta"><a class="c1" href="/#book">📅 احجز موعدك أونلاين</a><a class="c2" href="${waOf(cfg)}" rel="nofollow">💬 واتساب</a>${ph ? `<a class="c3" href="tel:${telOf(ph)}">📞 ${esc(ph)}</a>` : ''}</div></div></div>
 <main class="w">${body}</main>
-<footer><div class="w"><div><b style="color:#fff">فروعنا:</b> ${branches.map(b => `<a href="/${b.slug}">فرع ${esc(areaName(b))}</a>`).join('')}</div>
+<footer><div class="w"><div><b style="color:#fff">فروعنا:</b> ${branches.map(b => `<a href="/${b.slug}">عيادة أسنان ${esc(b.area)}</a>`).join('')}</div>
 <div><b style="color:#fff">خدماتنا:</b> ${services.map(s => `<a href="/${s.slug}">${esc(s.title)}</a>`).join('')}</div>
 <div class="v">© ${BRAND_EN} · v${PAGES_VERSION}</div></div></footer></body></html>`;
 }
@@ -137,102 +168,149 @@ function layout({ title, desc, path, h1, lead, crumb, body, schema, data, image 
 const faqBlock = (list, title) => list.length ? `<section><h2>${esc(title)}</h2>${list.map(([q, a]) => `<details><summary>${esc(q)}</summary><p>${esc(a)}</p></details>`).join('')}</section>` : '';
 const faqSchema = list => list.length ? [{ '@context': 'https://schema.org', '@type': 'FAQPage', mainEntity: list.map(([q, a]) => ({ '@type': 'Question', name: q, acceptedAnswer: { '@type': 'Answer', text: a } })) }] : [];
 const crumbSchema = items => ({ '@context': 'https://schema.org', '@type': 'BreadcrumbList', itemListElement: items.map(([name, path], i) => ({ '@type': 'ListItem', position: i + 1, name, item: SITE + path })) });
+const PRICE_NOTE = 'الأسعار تقريبية وبتختلف حسب الحالة، والسعر النهائي بيتحدد بعد الكشف والأشعة وبيتكتبلك في خطة العلاج قبل ما تبدأ.';
 
-function dentistSchema(b, cfg) {
+function priceBox(s, where) {
+  if (!s.price) return `<div class="price"><small>💰 سعر ${esc(s.kw)}${where ? ' ' + esc(where) : ''} بيتحدد بعد الكشف حسب حالتك — <a href="/#book">احجز كشف</a> أو اسألنا على واتساب.</small></div>`;
+  return `<div class="price"><small>💰 أسعار ${esc(s.kw)}${where ? ' ' + esc(where) : ''} تبدأ من</small><b>${esc(money(s.price.min))}</b></div>`;
+}
+function priceTable(s) {
+  if (!s.price) return '';
+  return `<table class="ptable">${s.price.items.map(p => `<tr><td>${esc(p.name)}</td><td>${esc(priceText(p))}</td></tr>`).join('')}</table><p class="note">${PRICE_NOTE}</p>`;
+}
+
+function dentistSchema(b, cfg, path) {
   const s = {
     '@context': 'https://schema.org', '@type': 'Dentist', '@id': SITE + '/' + b.slug + '#clinic',
-    name: `${BRAND} - فرع ${areaName(b)}`, alternateName: `${BRAND_EN} - ${b.slug}`, url: SITE + '/' + b.slug, image: LOGO, logo: LOGO,
-    telephone: phonesOf(cfg, b).map(telOf)[0],
-    address: { '@type': 'PostalAddress', streetAddress: b.address || areaName(b), addressLocality: areaName(b), addressCountry: 'EG' },
+    name: `${BRAND} - فرع ${b.area}`, alternateName: `${BRAND_EN} - ${b.slug}`, url: SITE + '/' + b.slug, image: LOGO, logo: LOGO,
+    telephone: phonesOf(cfg, b).map(telOf)[0], priceRange: '$$',
+    address: { '@type': 'PostalAddress', streetAddress: b.address || fullArea(b), addressLocality: b.area, addressRegion: ['فيصل', 'الهرم'].includes(b.area) ? 'الجيزة' : 'القاهرة', addressCountry: 'EG' },
+    areaServed: [b.area, ...nearOf(b)].map(n => ({ '@type': 'Place', name: n })),
     parentOrganization: { '@type': 'Organization', name: BRAND, url: SITE }
   };
   if (b.mapsLink) s.hasMap = b.mapsLink;
   const ll = String(b.mapsLink || '').match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
   if (ll) s.geo = { '@type': 'GeoCoordinates', latitude: Number(ll[1]), longitude: Number(ll[2]) };
-  if (b.hours || (cfg.hours && cfg.hours.ar)) s.description = 'مواعيد العمل: ' + (b.hours || cfg.hours.ar);
+  const h = hoursOf(cfg, b); if (h) s.description = 'مواعيد العمل: ' + h;
   const sameAs = Object.values(cfg.socials || {}).filter(x => /^https?:/.test(String(x)));
   if (sameAs.length) s.sameAs = sameAs;
   return s;
 }
-
-// ---------- صفحة الفرع ----------
-function branchPage(b, data) {
-  const { cfg, branches, services } = data;
-  const area = areaName(b);
-  const top = services.slice(0, 6).map(s => s.title);
-  const ph = phonesOf(cfg, b);
-  const hours = b.hours || (cfg.hours && cfg.hours.ar) || '';
-  const others = branches.filter(x => x.id !== b.id);
-  const title = `دكتور أسنان في ${area} | ${BRAND} - فرع ${area}`;
-  const desc = clip(`مركز ${BRAND} فرع ${area}${b.address ? ' - ' + b.address : ''}. ${joinAr(top.slice(0, 4))} وأكتر. ${hours ? 'المواعيد: ' + hours + '. ' : ''}احجز أونلاين أو كلمنا.`, 158);
-  const faqs = [
-    [`فين عنوان ${BRAND} فرع ${area}؟`, b.address ? `العنوان: ${b.address}. وتقدر تفتح الموقع على خرائط جوجل من الخريطة اللي في الصفحة.` : `فرعنا في ${area}، وتقدر تفتح مكانه على خرائط جوجل من الخريطة اللي في الصفحة.`],
-    hours && [`مواعيد فرع ${area} إيه؟`, `مواعيد العمل: ${hours}. ويفضّل الحجز المسبق عشان ميكونش في انتظار.`],
-    b.consultFee && [`سعر الكشف في فرع ${area} كام؟`, `سعر الكشف: ${b.consultFee}. وبعد الكشف بتاخد خطة علاج مكتوبة فيها التكلفة المتوقعة قبل ما تبدأ.`],
-    [`إزاي أحجز في فرع ${area}؟`, `تقدر تحجز أونلاين من زرار "احجز موعدك" وتختار فرع ${area} واليوم والوقت المناسب، أو تكلمنا${ph[0] ? ' على ' + ph[0] : ''} أو تبعتلنا واتساب.`],
-    [`الخدمات المتاحة في فرع ${area} إيه؟`, `${joinAr(services.map(s => s.title))}. ولو محتاج خدمة معينة اسألنا قبل الحجز عشان نأكدلك مواعيدها في الفرع.`]
-  ].filter(Boolean);
-  const body = `
-<section><h2>عن فرع ${esc(area)}</h2>
-<p>فرع ${esc(area)} من ${BRAND} بيقدّم خدمات طب وتجميل الأسنان للكبار والأطفال، من الكشف والحشو وعلاج العصب لحد الزراعة والتقويم وابتسامة هوليود. لو بتدوّر على دكتور أسنان في ${esc(area)} قريب منك، تقدر تحجز ميعادك أونلاين في دقيقة وتختار اليوم والوقت اللي يناسبك.</p>
-<p>في كل زيارة بنبدأ بكشف وتشخيص واضح، وبنشرحلك حالتك ونكتبلك خطة علاج بالترتيب والتكلفة المتوقعة قبل أي خطوة، عشان تبقى عارف هتعمل إيه وليه. وبنهتم بالتعقيم واستخدام أدوات معقمة لكل مريض.</p>
-<p>ولو عندك سؤال قبل الحجز، ابعتلنا على واتساب أو استخدم الاستشارة الأونلاين المجانية من الموقع، والدكتور هيرد عليك.</p></section>
-<section><h2>بيانات الفرع</h2><div class="info">
+const branchInfo = (b, cfg) => {
+  const ph = phonesOf(cfg, b), hours = hoursOf(cfg, b);
+  return `<div class="info">
 ${b.address ? `<div><small>العنوان</small><strong>${esc(b.address)}</strong></div>` : ''}
 ${hours ? `<div><small>المواعيد</small><strong>${esc(hours)}</strong></div>` : ''}
 ${ph.length ? `<div><small>التليفون</small><strong dir="ltr">${ph.map(p => `<a href="tel:${telOf(p)}">${esc(p)}</a>`).join('<br>')}</strong></div>` : ''}
 ${b.consultFee ? `<div><small>سعر الكشف</small><strong>${esc(b.consultFee)}</strong></div>` : ''}
 ${b.waitTime ? `<div><small>متوسط وقت الانتظار</small><strong>${esc(b.waitTime)}</strong></div>` : ''}
-</div><iframe class="map" title="خريطة فرع ${esc(area)}" src="${esc(mapSrc(b))}" loading="lazy" referrerpolicy="no-referrer-when-downgrade" allowfullscreen></iframe>
-${b.mapsLink ? `<p style="margin-top:8px"><a href="${esc(b.mapsLink)}" rel="noopener" target="_blank">📍 افتح الموقع على خرائط جوجل</a></p>` : ''}</section>
-<section><h2>خدماتنا في فرع ${esc(area)}</h2><div class="grid">${services.map(s => `<a class="card" href="/${s.slug}"><b>${esc(s.title)}</b><span>${esc(clip(s.desc || (contentFor(s) || {}).desc || '', 110))}</span></a>`).join('')}</div></section>
-${faqBlock(faqs, `أسئلة شائعة عن فرع ${area}`)}
-${others.length ? `<section><h2>فروعنا التانية</h2><div class="tags">${others.map(o => `<a href="/${o.slug}">فرع ${esc(areaName(o))}</a>`).join('')}</div></section>` : ''}`;
+</div><iframe class="map" title="خريطة فرع ${esc(b.area)}" src="${esc(mapSrc(b))}" loading="lazy" referrerpolicy="no-referrer-when-downgrade" allowfullscreen></iframe>
+${b.mapsLink ? `<p style="margin-top:8px"><a href="${esc(b.mapsLink)}" rel="noopener" target="_blank">📍 افتح الموقع على خرائط جوجل</a></p>` : ''}`;
+};
+
+// ---------- صفحة الفرع: "دكتور أسنان في …" / "عيادة أسنان …" ----------
+function branchPage(b, data) {
+  const { cfg, branches, services } = data;
+  const area = b.area, near = nearOf(b), hours = hoursOf(cfg, b), ph = phonesOf(cfg, b);
+  const others = branches.filter(x => x.id !== b.id);
+  const priced = services.filter(s => s.price).sort((x, y) => x.price.min - y.price.min);
+  const title = `دكتور أسنان في ${area}${near[0] ? ' و' + near[0] : ''} | عيادة أسنان ${area} - ${BRAND}`;
+  const desc = clip(`عيادة أسنان ${area}${b.address ? ': ' + b.address : ''}. ${joinAr(services.slice(0, 4).map(s => s.title))} وأكتر${priced[0] ? '، والأسعار تبدأ من ' + money(priced[0].price.min) : ''}. ${hours ? 'المواعيد: ' + hours + '. ' : ''}احجز أونلاين.`, 160);
+  const faqs = [
+    [`فين أقرب دكتور أسنان في ${area}؟`, `${BRAND} فرع ${area}${b.address ? ' في ' + b.address : ''}. تقدر تفتح المكان على خرائط جوجل من الخريطة اللي في الصفحة وتحجز أونلاين.`],
+    hours && [`مواعيد عيادة الأسنان في ${area} إيه؟`, `مواعيد العمل: ${hours}. ويفضّل الحجز المسبق عشان ميكونش في انتظار.`],
+    b.consultFee && [`سعر كشف الأسنان في ${area} كام؟`, `سعر الكشف في فرع ${area}: ${b.consultFee}. وبعد الكشف بتاخد خطة علاج مكتوبة فيها التكلفة المتوقعة.`],
+    ...priced.slice(0, 3).map(s => [`سعر ${s.kw} في ${area} كام؟`, `أسعار ${s.kw} تبدأ من ${money(s.price.min)}، والسعر النهائي بيتحدد بعد الكشف حسب حالتك.`]),
+    near.length && [`الفرع قريب من ${joinAr(near)}؟`, `أيوه، فرع ${area} قريب من ${joinAr(near)}. افتح الخريطة في الصفحة وشوف أسهل طريق ليك.`],
+    [`إزاي أحجز في عيادة ${area}؟`, `من زرار "احجز موعدك" تختار فرع ${area} واليوم والوقت، أو تكلمنا${ph[0] ? ' على ' + ph[0] : ''} أو تبعتلنا واتساب.`]
+  ].filter(Boolean);
+  const body = `
+<section><h2>عيادة أسنان في ${esc(area)}</h2>
+<p>لو بتدوّر على دكتور أسنان في ${esc(area)}${near.length ? ' أو ' + esc(joinAr(near)) : ''}، فرع ${esc(area)} من ${BRAND} بيقدّم كل خدمات طب وتجميل الأسنان للكبار والأطفال: من الكشف والحشو وعلاج العصب لحد زراعة الأسنان والتقويم المعدني والشفاف وابتسامة هوليود.</p>
+<p>في كل زيارة بنبدأ بكشف وتشخيص واضح، وبنشرحلك حالتك ونكتبلك خطة علاج بالترتيب والتكلفة المتوقعة قبل أي خطوة، عشان تبقى عارف هتعمل إيه وليه. وبنهتم بالتعقيم واستخدام أدوات معقمة لكل مريض، وبنستخدم البنج الموضعي عشان العلاج يبقى مريح.</p>
+<p>تقدر تحجز ميعادك أونلاين في دقيقة، أو تسألنا الأول على واتساب أو من الاستشارة الأونلاين المجانية في الموقع.</p></section>
+${priced.length ? `<section><h2>أسعار الأسنان في فرع ${esc(area)}</h2><table class="ptable">${priced.map(s => { const c = comboFor(data, s, b); return `<tr><td><a href="/${c ? c.slug : s.slug}">${esc(s.kw)}</a></td><td>تبدأ من ${esc(money(s.price.min))}</td></tr>`; }).join('')}</table><p class="note">${PRICE_NOTE}</p></section>` : ''}
+<section><h2>عنوان ومواعيد عيادة ${esc(area)}</h2>${branchInfo(b, cfg)}</section>
+<section><h2>خدمات الأسنان في ${esc(area)}</h2><div class="grid">${services.map(s => { const c = comboFor(data, s, b); return `<a class="card" href="/${c ? c.slug : s.slug}"><b>${esc(c ? s.kw + ' في ' + area : s.title)}</b><span>${esc(clip(descOf(s), 100))}${s.price ? ' — ' + esc(fromTxt(s)) : ''}</span></a>`; }).join('')}</div></section>
+${faqBlock(faqs, `أسئلة شائعة عن عيادة الأسنان في ${area}`)}
+${others.length ? `<section><h2>فروعنا التانية</h2><div class="tags">${others.map(o => `<a href="/${o.slug}">دكتور أسنان في ${esc(o.area)}</a>`).join('')}</div></section>` : ''}`;
   return layout({
-    title, desc, path: '/' + b.slug, h1: `${BRAND} — فرع ${area}`, lead: `دكتور أسنان في ${area}: ${joinAr(top.slice(0, 4))} وأكتر. احجز ميعادك أونلاين.`,
-    crumb: `<a href="/">الرئيسية</a> › فرع ${esc(area)}`, body, data,
-    schema: [dentistSchema(b, cfg), crumbSchema([['الرئيسية', '/'], ['فرع ' + area, '/' + b.slug]]), ...faqSchema(faqs)]
+    title, desc, path: '/' + b.slug, h1: `دكتور أسنان في ${area} — ${BRAND}`, lead: `عيادة أسنان ${area}${near.length ? ' قريبة من ' + joinAr(near) : ''}: زراعة، تقويم، علاج عصب، تجميل وأطفال. احجز أونلاين.`,
+    crumb: `<a href="/">الرئيسية</a> › عيادة أسنان ${esc(area)}`, body, data,
+    schema: [dentistSchema(b, cfg), crumbSchema([['الرئيسية', '/'], ['عيادة أسنان ' + area, '/' + b.slug]]), ...faqSchema(faqs)]
   });
 }
 
 // ---------- صفحة الخدمة ----------
 function servicePage(s, data) {
-  const { cfg, branches, services, faqs: allFaqs } = data;
-  const C = contentFor(s);
-  const kw = s.title || (C && C.kw);
-  const areas = branches.map(areaName);
-  const where = areas.length ? ' في ' + joinAr(areas) : '';
-  const title = `${kw}${where} | ${BRAND}`;
-  const desc = clip((C ? C.desc : s.desc) + (areas.length ? ` متاحة في فروع ${joinAr(areas)}.` : '') + ' احجز أونلاين.', 158);
+  const { branches, services, faqs: allFaqs } = data;
+  const C = S[s.key];
+  const kw = s.kw;
+  const areas = branches.map(b => b.area);
+  const title = `${kw} في ${joinAr(areas)}${s.price ? ' | الأسعار ' + fromTxt(s) : ''} | ${BRAND}`;
+  const desc = clip((C ? C.desc : descOf(s)) + (s.price ? ` الأسعار ${fromTxt(s)}.` : '') + (areas.length ? ` في فروع ${joinAr(areas)}.` : '') + ' احجز أونلاين.', 160);
   const dbFaqs = allFaqs.filter(f => faqForSvc(f, s)).map(f => [f.q, f.a]);
-  const faqs = [...(C ? C.faqs : []), ...dbFaqs].filter((f, i, a) => a.findIndex(x => x[0] === f[0]) === i).slice(0, 12);
+  const priceFaq = [`سعر ${kw} كام؟`, s.price ? `أسعار ${kw} تبدأ من ${money(s.price.min)}، والسعر النهائي بيتحدد بعد الكشف حسب حالتك وعدد الأسنان والمادة المستخدمة.` : `سعر ${kw} بيتحدد بعد الكشف حسب حالتك، وبتاخد خطة علاج مكتوبة فيها التكلفة قبل ما تبدأ.`];
+  const faqs = [priceFaq, ...(C ? C.faqs : []), ...dbFaqs].filter((f, i, a) => a.findIndex(x => x[0] === f[0]) === i).slice(0, 12);
   const img = s.image && /^https?:/.test(s.image) ? s.image : '';
+  const combos = data.combos.filter(c => c.s === s);
   const body = `
 <section>${img ? `<img class="img" src="${esc(img)}" alt="${esc(kw)} - ${BRAND}" loading="eager" width="960" height="360">` : ''}
-<h2>${esc(kw)} في ${BRAND}</h2>${s.desc ? `<p>${esc(s.desc)}</p>` : ''}
-${C ? '' : `<p>بنقدّم خدمة ${esc(kw)} بعد كشف وتشخيص دقيق، وبنشرحلك الخطوات والتكلفة المتوقعة قبل البدء. تقدر تحجز أونلاين أو تسألنا على واتساب.</p>`}</section>
+<h2>${esc(kw)} في ${BRAND}</h2>${priceBox(s)}${s.desc ? `<p>${esc(s.desc)}</p>` : ''}
+${C ? '' : `<p>بنقدّم ${esc(kw)} بعد كشف وتشخيص دقيق، وبنشرحلك الخطوات والتكلفة المتوقعة قبل البدء. تقدر تحجز أونلاين أو تسألنا على واتساب.</p>`}</section>
 ${C ? C.body.map(([h, ps]) => `<section><h2>${esc(h)}</h2>${ps.map(p => `<p>${esc(p)}</p>`).join('')}</section>`).join('') : ''}
-${branches.length ? `<section><h2>${esc(kw)} في فروعنا</h2><p>الخدمة متاحة في فروع ${esc(joinAr(areas))}. اختار الفرع الأقرب ليك واعرف عنوانه ومواعيده:</p><div class="tags">${branches.map(b => `<a href="/${b.slug}">${esc(kw)} في ${esc(areaName(b))}</a>`).join('')}</div></section>` : ''}
+${s.price ? `<section><h2>أسعار ${esc(kw)}</h2>${priceTable(s)}</section>` : ''}
+${branches.length ? `<section><h2>${esc(kw)} في فروعنا</h2><p>اختار الفرع الأقرب ليك:</p><div class="tags">${branches.map(b => { const c = combos.find(x => x.b === b); return `<a href="/${c ? c.slug : b.slug}">${esc(kw)} ${esc(b.area)}</a>`; }).join('')}</div></section>` : ''}
 ${faqBlock(faqs, `أسئلة شائعة عن ${kw}`)}
-<section><h2>خدمات تانية ممكن تهمك</h2><div class="tags">${services.filter(x => x.slug !== s.slug).map(x => `<a href="/${x.slug}">${esc(x.title)}</a>`).join('')}</div></section>`;
-  const proc = { '@context': 'https://schema.org', '@type': 'MedicalWebPage', name: title, url: SITE + '/' + s.slug, inLanguage: 'ar', about: { '@type': 'MedicalProcedure', name: kw, description: C ? C.desc : (s.desc || kw) }, publisher: { '@type': 'Dentist', name: BRAND, url: SITE, logo: LOGO } };
+<section><h2>خدمات تانية ممكن تهمك</h2><div class="tags">${services.filter(x => x !== s).map(x => `<a href="/${x.slug}">${esc(x.kw)}</a>`).join('')}</div></section>`;
+  const proc = { '@context': 'https://schema.org', '@type': 'MedicalWebPage', name: title, url: SITE + '/' + s.slug, inLanguage: 'ar', about: { '@type': 'MedicalProcedure', name: kw, description: C ? C.desc : (descOf(s) || kw) }, publisher: { '@type': 'Dentist', name: BRAND, url: SITE, logo: LOGO } };
   return layout({
-    title, desc, path: '/' + s.slug, h1: `${kw}${where}`, lead: C ? C.desc : clip(s.desc || '', 180), image: img,
+    title, desc, path: '/' + s.slug, h1: `${kw} في ${joinAr(areas)}`, lead: (C ? C.desc : clip(descOf(s), 180)) + (s.price ? ` — الأسعار ${fromTxt(s)}.` : ''), image: img,
     crumb: `<a href="/">الرئيسية</a> › <a href="/#services">الخدمات</a> › ${esc(kw)}`, body, data,
     schema: [proc, crumbSchema([['الرئيسية', '/'], [kw, '/' + s.slug]]), ...faqSchema(faqs)]
   });
 }
 
+// ---------- صفحة "خدمة + فرع" (زراعة أسنان حلوان) ----------
+function comboPage(c, data) {
+  const { cfg, branches } = data;
+  const { s, b } = c, C = S[s.key], kw = s.kw, area = b.area, near = nearOf(b), ph = phonesOf(cfg, b);
+  const title = `${kw} في ${area}${s.price ? ' | ' + fromTxt(s) : ''} | ${BRAND} فرع ${area}`;
+  const desc = clip(`${kw} في ${area}${b.address ? ' — ' + b.address : ''}.${s.price ? ' الأسعار ' + fromTxt(s) + '.' : ''} كشف وخطة علاج واضحة قبل البدء. احجز أونلاين أو كلمنا.`, 160);
+  const faqs = [
+    [`سعر ${kw} في ${area} كام؟`, s.price ? `أسعار ${kw} في فرع ${area} تبدأ من ${money(s.price.min)}. السعر النهائي بيتحدد بعد الكشف والأشعة حسب حالتك، وبيتكتبلك قبل ما تبدأ.` : `السعر بيتحدد بعد الكشف حسب حالتك، وبتاخد خطة علاج مكتوبة فيها التكلفة قبل ما تبدأ.`],
+    [`فين أعمل ${kw} في ${area}؟`, `في ${BRAND} فرع ${area}${b.address ? ': ' + b.address : ''}${near.length ? '، قريب من ' + joinAr(near) : ''}.`],
+    hoursOf(cfg, b) && [`مواعيد فرع ${area} إيه؟`, `مواعيد العمل: ${hoursOf(cfg, b)}.`],
+    ...(C ? C.faqs.slice(0, 3) : [])
+  ].filter(Boolean);
+  const others = data.combos.filter(x => x.s === s && x.b !== b);
+  const body = `
+<section><h2>${esc(kw)} في ${esc(area)}</h2>${priceBox(s, 'في ' + area)}
+<p>لو بتدوّر على ${esc(kw)} في ${esc(area)}${near.length ? ' أو ' + esc(joinAr(near)) : ''}، تقدر تعمله في فرع ${esc(area)} من ${BRAND}${b.address ? ' (' + esc(b.address) + ')' : ''}. بنبدأ بكشف ${s.key === 'implants' || s.key === 'clear-aligners' || s.key === 'ortho' ? 'وأشعة ' : ''}عشان نحدد المناسب لحالتك، وبنكتبلك خطة العلاج والتكلفة قبل أي خطوة.</p>
+${C ? `<p>${esc(C.desc)}</p>` : (s.desc ? `<p>${esc(s.desc)}</p>` : '')}</section>
+${C ? C.body.slice(0, 2).map(([h, ps]) => `<section><h2>${esc(h)}</h2>${ps.map(p => `<p>${esc(p)}</p>`).join('')}</section>`).join('') : ''}
+${s.price ? `<section><h2>أسعار ${esc(kw)} في ${esc(area)}</h2>${priceTable(s)}</section>` : ''}
+<section><h2>عنوان فرع ${esc(area)} ومواعيده</h2>${branchInfo(b, cfg)}</section>
+${faqBlock(faqs, `أسئلة عن ${kw} في ${area}`)}
+<section><h2>اعرف أكتر</h2><div class="tags"><a href="/${s.slug}">كل التفاصيل عن ${esc(kw)}</a><a href="/${b.slug}">عيادة أسنان ${esc(area)}</a>${others.map(o => `<a href="/${o.slug}">${esc(kw)} ${esc(o.b.area)}</a>`).join('')}</div></section>`;
+  const page = { '@context': 'https://schema.org', '@type': 'MedicalWebPage', name: title, url: SITE + '/' + c.slug, inLanguage: 'ar', about: { '@type': 'MedicalProcedure', name: kw }, publisher: { '@id': SITE + '/' + b.slug + '#clinic' } };
+  return layout({
+    title, desc, path: '/' + c.slug, h1: `${kw} في ${area}`, lead: `${kw} في ${BRAND} فرع ${area}${s.price ? ' — ' + fromTxt(s) : ''}. احجز كشفك أونلاين.`, image: s.image,
+    crumb: `<a href="/">الرئيسية</a> › <a href="/${b.slug}">عيادة أسنان ${esc(area)}</a> › ${esc(kw)}`, body, data,
+    schema: [page, dentistSchema(b, cfg), crumbSchema([['الرئيسية', '/'], ['عيادة أسنان ' + area, '/' + b.slug], [kw + ' في ' + area, '/' + c.slug]]), ...faqSchema(faqs)]
+  });
+}
+
 function sitemap(data) {
   const d = new Date().toISOString().slice(0, 10);
-  const urls = [['/', '1.0'], ...data.branches.map(b => ['/' + b.slug, '0.9']), ...data.services.map(s => ['/' + s.slug, '0.8'])];
-  return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map(([p, pr]) => `  <url><loc>${SITE}${p === '/' ? '/' : p}</loc><lastmod>${d}</lastmod><priority>${pr}</priority></url>`).join('\n')}\n</urlset>\n`;
+  const urls = [['/', '1.0'], ...data.branches.map(b => ['/' + b.slug, '0.9']), ...data.services.map(s => ['/' + s.slug, '0.8']), ...data.combos.map(c => ['/' + c.slug, '0.7'])];
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map(([p, pr]) => `  <url><loc>${SITE}${p}</loc><lastmod>${d}</lastmod><priority>${pr}</priority></url>`).join('\n')}\n</urlset>\n`;
 }
 
 function notFound(data) {
   return layout({
     title: `الصفحة مش موجودة | ${BRAND}`, desc: BRAND, path: '/', h1: 'الصفحة دي مش موجودة', lead: 'جرّب واحدة من الصفحات دي:', crumb: '<a href="/">الرئيسية</a>', data, schema: [],
-    body: `<section><h2>فروعنا</h2><div class="tags">${data.branches.map(b => `<a href="/${b.slug}">فرع ${esc(areaName(b))}</a>`).join('')}</div><h2 style="margin-top:14px">خدماتنا</h2><div class="tags">${data.services.map(s => `<a href="/${s.slug}">${esc(s.title)}</a>`).join('')}</div></section>`
+    body: `<section><h2>فروعنا</h2><div class="tags">${data.branches.map(b => `<a href="/${b.slug}">عيادة أسنان ${esc(b.area)}</a>`).join('')}</div><h2 style="margin-top:14px">خدماتنا</h2><div class="tags">${data.services.map(s => `<a href="/${s.slug}">${esc(s.kw)}</a>`).join('')}</div></section>`
   });
 }
 
@@ -243,11 +321,10 @@ async function handler(req, res) {
     res.setHeader('Cache-Control', 'public, max-age=300, s-maxage=3600, stale-while-revalidate=86400');
     if (q.sitemap) { res.setHeader('Content-Type', 'application/xml; charset=utf-8'); return res.status(200).send(sitemap(data)); }
     const slug = latin(q.slug);
-    const b = data.branches.find(x => x.slug === slug);
-    const s = !b && data.services.find(x => x.slug === slug);
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
-    if (b) return res.status(200).send(branchPage(b, data));
-    if (s) return res.status(200).send(servicePage(s, data));
+    const b = data.branches.find(x => x.slug === slug); if (b) return res.status(200).send(branchPage(b, data));
+    const s = data.services.find(x => x.slug === slug); if (s) return res.status(200).send(servicePage(s, data));
+    const c = data.combos.find(x => x.slug === slug); if (c) return res.status(200).send(comboPage(c, data));
     res.setHeader('Cache-Control', 'public, max-age=60, s-maxage=600');
     return res.status(404).send(notFound(data));
   } catch (e) {
@@ -258,4 +335,3 @@ async function handler(req, res) {
 
 module.exports = handler;
 module.exports.loadData = loadData;
-module.exports._t = { branchPage, servicePage, sitemap, notFound, branchSlug, svcSlug, setData: d => { CACHE = { t: Date.now(), data: d }; } };
