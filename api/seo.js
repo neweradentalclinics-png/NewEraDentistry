@@ -11,7 +11,7 @@ const BRAND = 'نيو إيرا لطب الأسنان';
 const BRAND_EN = 'New Era Dental Center';
 const DEFAULT_LOGO = 'https://i.ibb.co/qLw7Tcqv/logo-Dr-shahenda-original.png';
 let LOGO = DEFAULT_LOGO; // بيتغير من اللوحة (التسويق و SEO ← اللوجو)
-const PAGES_VERSION = '1.5';
+const PAGES_VERSION = '1.6';
 
 // ---------- قراءة قاعدة البيانات ----------
 const val = v => {
@@ -52,7 +52,8 @@ const keyOf = s => (S[s.id] && !['rootcanal', 'endo'].includes(s.id)) ? s.id : (
 
 let CACHE = { t: 0, data: null };
 async function loadData() {
-  if (CACHE.data && Date.now() - CACHE.t < 5 * 60 * 1000) return CACHE.data;
+  // ساعة كاملة (توفير قراءات قاعدة البيانات) — ولو القراءة فشلت بنكمّل بآخر بيانات سليمة
+  if (CACHE.data && Date.now() - CACHE.t < 60 * 60 * 1000) return CACHE.data;
   const [siteDoc, brs, faqRows, prices] = await Promise.all([
     getJSON(`${FS}/settings/site`).catch(() => null),
     listAll('branches').catch(() => []),
@@ -62,6 +63,7 @@ async function loadData() {
     }).catch(() => []),
     listAll('services').catch(() => [])
   ]);
+  if (!siteDoc && CACHE.data) { CACHE.t = Date.now() - 55 * 60 * 1000; return CACHE.data; }
   const cfg = siteDoc ? obj(siteDoc.fields) : {};
   cfg.seo = cfg.seo && typeof cfg.seo === 'object' ? cfg.seo : {};
   LOGO = /^https?:\/\//.test(String(cfg.seo.logo || '')) ? cfg.seo.logo : DEFAULT_LOGO;
