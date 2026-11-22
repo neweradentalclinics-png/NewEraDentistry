@@ -11,7 +11,7 @@ const BRAND = 'نيو إيرا لطب الأسنان';
 const BRAND_EN = 'New Era Dental Center';
 const DEFAULT_LOGO = 'https://i.ibb.co/qLw7Tcqv/logo-Dr-shahenda-original.png';
 let LOGO = DEFAULT_LOGO; // بيتغير من اللوحة (التسويق و SEO ← اللوجو)
-const PAGES_VERSION = '1.6';
+const PAGES_VERSION = '1.7';
 
 // ---------- قراءة قاعدة البيانات ----------
 const val = v => {
@@ -154,8 +154,8 @@ const CSS2 = `.price{display:flex;align-items:center;gap:12px;flex-wrap:wrap;bac
 .price b{font-size:22px;color:#92400e}.price small{color:#92400e;font-weight:700}.ptable{width:100%;border-collapse:collapse;font-size:15px}.ptable td{padding:8px 4px;border-bottom:1px solid #f3f3f3}.ptable td:last-child{text-align:left;font-weight:800;white-space:nowrap}.note{font-size:13px;color:#6b7280}`;
 
 // ---------- أدوات القياس والتحقق (من اللوحة ← التسويق و SEO) ----------
-const TRK = { ga4: /^G-[A-Z0-9]{4,}$/i, gtm: /^GTM-[A-Z0-9]{4,}$/i, pixel: /^\d{8,20}$/, tiktok: /^[A-Z0-9]{10,30}$/i };
-const trkVal = (se, k) => { const v = String(se[k] || '').trim(); return TRK[k].test(v) ? (k === 'pixel' ? v : v.toUpperCase()) : ''; };
+const TRK = { ga4: /^G-[A-Z0-9]{4,}$/i, gtm: /^GTM-[A-Z0-9]{4,}$/i, pixel: /^\d{8,20}$/, tiktok: /^[A-Z0-9]{10,30}$/i, adsBook: /^AW-\d{6,}\/[\w-]{4,}$/i, adsContact: /^AW-\d{6,}\/[\w-]{4,}$/i };
+const trkVal = (se, k) => { const v = String(se[k] || '').trim(); if (!TRK[k].test(v)) return ''; return k === 'pixel' ? v : k.startsWith('ads') ? 'AW-' + v.slice(3) : v.toUpperCase(); };
 const attrOk = v => /^[A-Za-z0-9_\-.:=+/]{6,120}$/.test(String(v || '').trim()) ? String(v).trim() : '';
 function headExtras(cfg) {
   const se = cfg.seo || {}, out = [];
@@ -165,13 +165,15 @@ function headExtras(cfg) {
   const gtm = trkVal(se, 'gtm'), ga = trkVal(se, 'ga4'), px = trkVal(se, 'pixel'), tt = trkVal(se, 'tiktok');
   if (gtm) out.push(`<script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s);j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','${gtm}');</script>`);
   if (ga) out.push(`<script async src="https://www.googletagmanager.com/gtag/js?id=${ga}"></script><script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','${ga}');</script>`);
+  const ab = trkVal(se, 'adsBook'), ac = trkVal(se, 'adsContact'), aw = (ab || ac).split('/')[0];
+  if (aw) out.push(`${ga ? '' : `<script async src="https://www.googletagmanager.com/gtag/js?id=${aw}"></script>`}<script>window.dataLayer=window.dataLayer||[];if(!window.gtag){window.gtag=function(){dataLayer.push(arguments);};gtag('js',new Date());}gtag('config','${aw}');window.__neAds={c:'${ac}'};</script>`);
   if (px) out.push(`<script>!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');fbq('init','${px}');fbq('track','PageView');</script>`);
   if (tt) out.push(`<script>!function(w,d,t){w.TiktokAnalyticsObject=t;var ttq=w[t]=w[t]||[];ttq.methods=['page','track','identify','instances','debug','on','off','once','ready','alias','group','enableCookie','disableCookie'];ttq.setAndDefer=function(t,e){t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}};for(var i=0;i<ttq.methods.length;i++)ttq.setAndDefer(ttq,ttq.methods[i]);ttq.instance=function(t){for(var e=ttq._i[t]||[],n=0;n<ttq.methods.length;n++)ttq.setAndDefer(e,ttq.methods[n]);return e};ttq.load=function(e,n){var i='https://analytics.tiktok.com/i18n/pixel/events.js';ttq._i=ttq._i||{};ttq._i[e]=[];ttq._i[e]._u=i;ttq._t=ttq._t||{};ttq._t[e]=+new Date;ttq._o=ttq._o||{};ttq._o[e]=n||{};var o=d.createElement('script');o.async=!0;o.src=i+'?sdkid='+e+'&lib='+t;var a=d.getElementsByTagName('script')[0];a.parentNode.insertBefore(o,a)};ttq.load('${tt}');ttq.page();}(window,document,'ttq');</script>`);
   return out.join('');
 }
 // ضغطات الواتساب والاتصال بتتسجل كتحويلات
-const trackClicks = cfg => { const se = cfg.seo || {}; if (!['ga4', 'gtm', 'pixel', 'tiktok'].some(k => trkVal(se, k))) return '';
-  return `<script>document.addEventListener('click',function(e){var a=e.target.closest&&e.target.closest('a[href]');if(!a)return;var u=a.getAttribute('href')||'',k=/wa\\.me/.test(u)?'whatsapp':/^tel:/.test(u)?'call':/#book/.test(u)?'book_click':'';if(!k)return;try{window.dataLayer&&dataLayer.push({event:'ne_'+k});window.gtag&&gtag('event',k==='book_click'?'begin_checkout':'contact_'+k,{method:k});window.fbq&&fbq('track',k==='book_click'?'InitiateCheckout':'Contact');window.ttq&&ttq.track&&ttq.track(k==='book_click'?'ClickButton':'Contact')}catch(x){}},true);</script>`; };
+const trackClicks = cfg => { const se = cfg.seo || {}; if (!['ga4', 'gtm', 'pixel', 'tiktok', 'adsBook', 'adsContact'].some(k => trkVal(se, k))) return '';
+  return `<script>document.addEventListener('click',function(e){var a=e.target.closest&&e.target.closest('a[href]');if(!a)return;var u=a.getAttribute('href')||'',k=/wa\\.me/.test(u)?'whatsapp':/^tel:/.test(u)?'call':/#book/.test(u)?'book_click':'';if(!k)return;try{window.dataLayer&&dataLayer.push({event:'ne_'+k});window.gtag&&gtag('event',k==='book_click'?'begin_checkout':'contact_'+k,{method:k});if(k!=='book_click'&&window.gtag&&window.__neAds&&__neAds.c)gtag('event','conversion',{send_to:__neAds.c});window.fbq&&fbq('track',k==='book_click'?'InitiateCheckout':'Contact');window.ttq&&ttq.track&&ttq.track(k==='book_click'?'ClickButton':'Contact')}catch(x){}},true);</script>`; };
 
 function layout({ title, desc, path, h1, lead, crumb, body, schema, data, image }) {
   const { cfg, branches, services } = data;
