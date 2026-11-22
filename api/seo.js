@@ -2,6 +2,7 @@
 // البيانات بتتسحب من نفس قاعدة البيانات: الفروع والأسعار من السيستم، الخدمات والأسئلة من لوحة الموقع.
 // الصفحة بتتخزن على سيرفرات Vercel ساعة، فأي تعديل في البيانات بيبان خلال ساعة بالكتير.
 const { SVC_SLUG, AREA_SLUG, TITLE_SLUG, S, KW_TITLE, PRICE_RE, EXTRA, COMBO, NEAR } = require('./_content.js');
+const { POSTS } = require('./_blog.js');
 
 const PROJECT = 'new-era-dental-center';
 const FS = `https://firestore.googleapis.com/v1/projects/${PROJECT}/databases/(default)/documents`;
@@ -9,7 +10,7 @@ const SITE = 'https://neweradentalcenter.com';
 const BRAND = 'نيو إيرا لطب الأسنان';
 const BRAND_EN = 'New Era Dental Center';
 const LOGO = 'https://i.ibb.co/qLw7Tcqv/logo-Dr-shahenda-original.png';
-const PAGES_VERSION = '1.3';
+const PAGES_VERSION = '1.4';
 
 // ---------- قراءة قاعدة البيانات ----------
 const val = v => {
@@ -156,12 +157,13 @@ function layout({ title, desc, path, h1, lead, crumb, body, schema, data, image 
 <meta property="og:type" content="website"><meta property="og:title" content="${esc(title)}"><meta property="og:description" content="${esc(desc)}"><meta property="og:url" content="${url}"><meta property="og:locale" content="ar_EG"><meta property="og:image" content="${esc(image || LOGO)}">
 <link rel="icon" href="${LOGO}"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@500;700;800;900&display=swap" rel="stylesheet">
 <style>${CSS}${CSS2}</style>${schema.map(s => `<script type="application/ld+json">${JSON.stringify(s).replace(/</g, '\\u003c')}</script>`).join('')}</head><body>
-<header><div class="w"><a href="/"><img src="${LOGO}" alt="${BRAND}" width="120" height="42"></a><nav><a href="/">الرئيسية</a><a href="/#services">الخدمات</a>${ph ? `<a href="tel:${telOf(ph)}">اتصل بنا</a>` : ''}<a class="b" href="/#book">احجز موعد</a></nav></div></header>
+<header><div class="w"><a href="/"><img src="${LOGO}" alt="${BRAND}" width="120" height="42"></a><nav><a href="/">الرئيسية</a><a href="/#services">الخدمات</a><a href="/blog">المدونة</a>${ph ? `<a href="tel:${telOf(ph)}">اتصل بنا</a>` : ''}<a class="b" href="/#book">احجز موعد</a></nav></div></header>
 <div class="hero"><div class="w"><div class="crumb">${crumb}</div><h1>${esc(h1)}</h1><p>${esc(lead)}</p>
 <div class="cta"><a class="c1" href="/#book">📅 احجز موعدك أونلاين</a><a class="c2" href="${waOf(cfg)}" rel="nofollow">💬 واتساب</a>${ph ? `<a class="c3" href="tel:${telOf(ph)}">📞 ${esc(ph)}</a>` : ''}</div></div></div>
 <main class="w">${body}</main>
 <footer><div class="w"><div><b style="color:#fff">فروعنا:</b> ${branches.map(b => `<a href="/${b.slug}">عيادة أسنان ${esc(b.area)}</a>`).join('')}</div>
 <div><b style="color:#fff">خدماتنا:</b> ${services.map(s => `<a href="/${s.slug}">${esc(s.title)}</a>`).join('')}</div>
+<div><b style="color:#fff">المدونة:</b> <a href="/blog">نصايح ومعلومات عن الأسنان</a></div>
 <div class="v">© ${BRAND_EN} · v${PAGES_VERSION}</div></div></footer></body></html>`;
 }
 
@@ -301,9 +303,35 @@ ${faqBlock(faqs, `أسئلة عن ${kw} في ${area}`)}
   });
 }
 
+// ---------- المدونة ----------
+const BLOG_CSS = `.post{display:block;border:1px solid #eee;border-radius:16px;padding:16px;text-decoration:none;color:inherit;background:#fffdf7;margin-bottom:12px}.post b{display:block;color:#111827;font-size:18px;line-height:1.6}.post span{font-size:14px;color:#6b7280}.post time,.meta{font-size:12.5px;color:#9ca3af;font-weight:700}`;
+const posts = () => POSTS.slice().sort((a, b) => String(b.date).localeCompare(String(a.date)));
+const arDate = d => { try { return new Date(d + 'T12:00:00Z').toLocaleDateString('ar-EG', { year: 'numeric', month: 'long', day: 'numeric' }); } catch (e) { return d; } };
+const svcByKey = (data, k) => data.services.find(s => s.key === k || s.id === k || s.slug === k);
+
+function blogIndex(data) {
+  const list = posts();
+  const body = `<style>${BLOG_CSS}</style><section><h2>أحدث المقالات</h2>${list.map(p => `<a class="post" href="/blog/${p.slug}"><time datetime="${p.date}">${esc(arDate(p.date))}</time><b>${esc(p.title)}</b><span>${esc(p.desc)}</span></a>`).join('') || '<p>قريب هتلاقي هنا مقالات ونصايح عن صحة الأسنان.</p>'}</section>`;
+  const schema = { '@context': 'https://schema.org', '@type': 'Blog', name: `مدونة ${BRAND}`, url: SITE + '/blog', inLanguage: 'ar', publisher: { '@type': 'Organization', name: BRAND, logo: LOGO }, blogPost: list.slice(0, 30).map(p => ({ '@type': 'BlogPosting', headline: p.title, url: SITE + '/blog/' + p.slug, datePublished: p.date })) };
+  return layout({ title: `مدونة ${BRAND} | نصايح ومعلومات عن الأسنان`, desc: 'مقالات ونصايح من دكاترة نيو إيرا لطب الأسنان: زراعة، تقويم، علاج عصب، تنظيف جير وتجميل — في فيصل وحلوان والأخصاص.', path: '/blog', h1: `مدونة ${BRAND}`, lead: 'نصايح ومعلومات عن صحة وتجميل الأسنان من دكاترتنا.', crumb: '<a href="/">الرئيسية</a> › المدونة', body, data, schema: [schema, crumbSchema([['الرئيسية', '/'], ['المدونة', '/blog']])] });
+}
+
+function blogPost(p, data) {
+  const rel = (p.services || []).map(k => svcByKey(data, k)).filter(Boolean);
+  const more = posts().filter(x => x.slug !== p.slug).slice(0, 4);
+  const body = `<style>${BLOG_CSS}</style><section><p class="meta">📅 ${esc(arDate(p.date))} · فريق ${BRAND}</p>${p.image ? `<img class="img" src="${esc(p.image)}" alt="${esc(p.title)}" width="960" height="360">` : ''}</section>
+${(p.sections || []).map(([h, ps]) => `<section><h2>${esc(h)}</h2>${ps.map(x => `<p>${esc(x)}</p>`).join('')}</section>`).join('')}
+${faqBlock(p.faqs || [], 'أسئلة شائعة')}
+${rel.length ? `<section><h2>خدمات مرتبطة</h2><div class="tags">${rel.map(s => `<a href="/${s.slug}">${esc(s.kw)}</a>`).join('')}</div><div class="tags" style="margin-top:6px">${data.branches.map(b => `<a href="/${b.slug}">دكتور أسنان في ${esc(b.area)}</a>`).join('')}</div></section>` : ''}
+${more.length ? `<section><h2>مقالات تانية</h2>${more.map(x => `<a class="post" href="/blog/${x.slug}"><b>${esc(x.title)}</b><span>${esc(x.desc)}</span></a>`).join('')}</section>` : ''}
+<p class="note">المعلومات دي عامة ومش بديل عن الكشف؛ الدكتور بيحدد المناسب لحالتك بعد الفحص.</p>`;
+  const art = { '@context': 'https://schema.org', '@type': 'BlogPosting', headline: p.title, description: p.desc, datePublished: p.date, dateModified: p.updated || p.date, inLanguage: 'ar', mainEntityOfPage: SITE + '/blog/' + p.slug, image: p.image || LOGO, author: { '@type': 'Organization', name: BRAND, url: SITE }, publisher: { '@type': 'Organization', name: BRAND, logo: { '@type': 'ImageObject', url: LOGO } } };
+  return layout({ title: `${p.title} | ${BRAND}`, desc: clip(p.desc, 160), path: '/blog/' + p.slug, h1: p.title, lead: p.desc, image: p.image, crumb: `<a href="/">الرئيسية</a> › <a href="/blog">المدونة</a> › ${esc(clip(p.title, 40))}`, body, data, schema: [art, crumbSchema([['الرئيسية', '/'], ['المدونة', '/blog'], [p.title, '/blog/' + p.slug]]), ...faqSchema(p.faqs || [])] });
+}
+
 function sitemap(data) {
   const d = new Date().toISOString().slice(0, 10);
-  const urls = [['/', '1.0'], ...data.branches.map(b => ['/' + b.slug, '0.9']), ...data.services.map(s => ['/' + s.slug, '0.8']), ...data.combos.map(c => ['/' + c.slug, '0.7'])];
+  const urls = [['/', '1.0'], ...data.branches.map(b => ['/' + b.slug, '0.9']), ...data.services.map(s => ['/' + s.slug, '0.8']), ...data.combos.map(c => ['/' + c.slug, '0.7']), ['/blog', '0.7'], ...posts().map(p => ['/blog/' + p.slug, '0.6'])];
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map(([p, pr]) => `  <url><loc>${SITE}${p}</loc><lastmod>${d}</lastmod><priority>${pr}</priority></url>`).join('\n')}\n</urlset>\n`;
 }
 
@@ -320,8 +348,14 @@ async function handler(req, res) {
     const data = await loadData();
     res.setHeader('Cache-Control', 'public, max-age=300, s-maxage=3600, stale-while-revalidate=86400');
     if (q.sitemap) { res.setHeader('Content-Type', 'application/xml; charset=utf-8'); return res.status(200).send(sitemap(data)); }
-    const slug = latin(q.slug);
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    if (q.blog) {
+      const bs = latin(q.blog);
+      if (bs === 'index' || bs === 'blog') return res.status(200).send(blogIndex(data));
+      const p = POSTS.find(x => x.slug === bs); if (p) return res.status(200).send(blogPost(p, data));
+    }
+    const slug = latin(q.slug);
+    if (slug === 'blog') return res.status(200).send(blogIndex(data));
     const b = data.branches.find(x => x.slug === slug); if (b) return res.status(200).send(branchPage(b, data));
     const s = data.services.find(x => x.slug === slug); if (s) return res.status(200).send(servicePage(s, data));
     const c = data.combos.find(x => x.slug === slug); if (c) return res.status(200).send(comboPage(c, data));

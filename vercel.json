@@ -1,5 +1,7 @@
 {
   "rewrites": [
+    { "source": "/blog", "destination": "/api/seo?blog=index" },
+    { "source": "/blog/:post([a-z0-9][a-z0-9-]*)", "destination": "/api/seo?blog=:post" },
     { "source": "/sitemap.xml", "destination": "/api/seo?sitemap=1" },
     { "source": "/:slug([a-z0-9][a-z0-9-]*)", "destination": "/api/seo?slug=:slug" }
   ]
