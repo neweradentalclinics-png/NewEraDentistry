@@ -9,8 +9,9 @@ const FS = `https://firestore.googleapis.com/v1/projects/${PROJECT}/databases/(d
 const SITE = 'https://neweradentalcenter.com';
 const BRAND = 'نيو إيرا لطب الأسنان';
 const BRAND_EN = 'New Era Dental Center';
-const LOGO = 'https://i.ibb.co/qLw7Tcqv/logo-Dr-shahenda-original.png';
-const PAGES_VERSION = '1.4';
+const DEFAULT_LOGO = 'https://i.ibb.co/qLw7Tcqv/logo-Dr-shahenda-original.png';
+let LOGO = DEFAULT_LOGO; // بيتغير من اللوحة (التسويق و SEO ← اللوجو)
+const PAGES_VERSION = '1.5';
 
 // ---------- قراءة قاعدة البيانات ----------
 const val = v => {
@@ -62,6 +63,8 @@ async function loadData() {
     listAll('services').catch(() => [])
   ]);
   const cfg = siteDoc ? obj(siteDoc.fields) : {};
+  cfg.seo = cfg.seo && typeof cfg.seo === 'object' ? cfg.seo : {};
+  LOGO = /^https?:\/\//.test(String(cfg.seo.logo || '')) ? cfg.seo.logo : DEFAULT_LOGO;
   const branches = brs.map(d => ({ id: d.name.split('/').pop(), ...obj(d.fields) }))
     .filter(b => b.name && b.active !== false && b.hidden !== true)
     .sort((a, b) => (a.order ?? 999) - (b.order ?? 999) || String(a.name).localeCompare(String(b.name), 'ar'));
@@ -148,14 +151,34 @@ ol,ul{margin:0 0 10px;padding-inline-start:22px}@media(max-width:640px){.hero h1
 const CSS2 = `.price{display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:#FFFBEB;border:1px solid #FDE68A;border-radius:16px;padding:14px 16px;margin:4px 0 12px}
 .price b{font-size:22px;color:#92400e}.price small{color:#92400e;font-weight:700}.ptable{width:100%;border-collapse:collapse;font-size:15px}.ptable td{padding:8px 4px;border-bottom:1px solid #f3f3f3}.ptable td:last-child{text-align:left;font-weight:800;white-space:nowrap}.note{font-size:13px;color:#6b7280}`;
 
+// ---------- أدوات القياس والتحقق (من اللوحة ← التسويق و SEO) ----------
+const TRK = { ga4: /^G-[A-Z0-9]{4,}$/i, gtm: /^GTM-[A-Z0-9]{4,}$/i, pixel: /^\d{8,20}$/, tiktok: /^[A-Z0-9]{10,30}$/i };
+const trkVal = (se, k) => { const v = String(se[k] || '').trim(); return TRK[k].test(v) ? (k === 'pixel' ? v : v.toUpperCase()) : ''; };
+const attrOk = v => /^[A-Za-z0-9_\-.:=+/]{6,120}$/.test(String(v || '').trim()) ? String(v).trim() : '';
+function headExtras(cfg) {
+  const se = cfg.seo || {}, out = [];
+  const g = attrOk(se.gsc), b = attrOk(se.bing);
+  if (g) out.push(`<meta name="google-site-verification" content="${esc(g)}">`);
+  if (b) out.push(`<meta name="msvalidate.01" content="${esc(b)}">`);
+  const gtm = trkVal(se, 'gtm'), ga = trkVal(se, 'ga4'), px = trkVal(se, 'pixel'), tt = trkVal(se, 'tiktok');
+  if (gtm) out.push(`<script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s);j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','${gtm}');</script>`);
+  if (ga) out.push(`<script async src="https://www.googletagmanager.com/gtag/js?id=${ga}"></script><script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','${ga}');</script>`);
+  if (px) out.push(`<script>!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');fbq('init','${px}');fbq('track','PageView');</script>`);
+  if (tt) out.push(`<script>!function(w,d,t){w.TiktokAnalyticsObject=t;var ttq=w[t]=w[t]||[];ttq.methods=['page','track','identify','instances','debug','on','off','once','ready','alias','group','enableCookie','disableCookie'];ttq.setAndDefer=function(t,e){t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}};for(var i=0;i<ttq.methods.length;i++)ttq.setAndDefer(ttq,ttq.methods[i]);ttq.instance=function(t){for(var e=ttq._i[t]||[],n=0;n<ttq.methods.length;n++)ttq.setAndDefer(e,ttq.methods[n]);return e};ttq.load=function(e,n){var i='https://analytics.tiktok.com/i18n/pixel/events.js';ttq._i=ttq._i||{};ttq._i[e]=[];ttq._i[e]._u=i;ttq._t=ttq._t||{};ttq._t[e]=+new Date;ttq._o=ttq._o||{};ttq._o[e]=n||{};var o=d.createElement('script');o.async=!0;o.src=i+'?sdkid='+e+'&lib='+t;var a=d.getElementsByTagName('script')[0];a.parentNode.insertBefore(o,a)};ttq.load('${tt}');ttq.page();}(window,document,'ttq');</script>`);
+  return out.join('');
+}
+// ضغطات الواتساب والاتصال بتتسجل كتحويلات
+const trackClicks = cfg => { const se = cfg.seo || {}; if (!['ga4', 'gtm', 'pixel', 'tiktok'].some(k => trkVal(se, k))) return '';
+  return `<script>document.addEventListener('click',function(e){var a=e.target.closest&&e.target.closest('a[href]');if(!a)return;var u=a.getAttribute('href')||'',k=/wa\\.me/.test(u)?'whatsapp':/^tel:/.test(u)?'call':/#book/.test(u)?'book_click':'';if(!k)return;try{window.dataLayer&&dataLayer.push({event:'ne_'+k});window.gtag&&gtag('event',k==='book_click'?'begin_checkout':'contact_'+k,{method:k});window.fbq&&fbq('track',k==='book_click'?'InitiateCheckout':'Contact');window.ttq&&ttq.track&&ttq.track(k==='book_click'?'ClickButton':'Contact')}catch(x){}},true);</script>`; };
+
 function layout({ title, desc, path, h1, lead, crumb, body, schema, data, image }) {
   const { cfg, branches, services } = data;
   const ph = phonesOf(cfg)[0];
   const url = SITE + path;
   return `<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${esc(title)}</title><meta name="description" content="${esc(desc)}"><link rel="canonical" href="${url}">
-<meta property="og:type" content="website"><meta property="og:title" content="${esc(title)}"><meta property="og:description" content="${esc(desc)}"><meta property="og:url" content="${url}"><meta property="og:locale" content="ar_EG"><meta property="og:image" content="${esc(image || LOGO)}">
-<link rel="icon" href="${LOGO}"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@500;700;800;900&display=swap" rel="stylesheet">
+<meta property="og:type" content="website"><meta property="og:title" content="${esc(title)}"><meta property="og:description" content="${esc(desc)}"><meta property="og:url" content="${url}"><meta property="og:locale" content="ar_EG"><meta property="og:image" content="${esc(image || cfg.seo.ogImage || LOGO)}"><meta name="twitter:card" content="summary_large_image"><meta name="theme-color" content="#D4AF37">
+<link rel="icon" href="${LOGO}">${headExtras(cfg)}<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@500;700;800;900&display=swap" rel="stylesheet">
 <style>${CSS}${CSS2}</style>${schema.map(s => `<script type="application/ld+json">${JSON.stringify(s).replace(/</g, '\\u003c')}</script>`).join('')}</head><body>
 <header><div class="w"><a href="/"><img src="${LOGO}" alt="${BRAND}" width="120" height="42"></a><nav><a href="/">الرئيسية</a><a href="/#services">الخدمات</a><a href="/blog">المدونة</a>${ph ? `<a href="tel:${telOf(ph)}">اتصل بنا</a>` : ''}<a class="b" href="/#book">احجز موعد</a></nav></div></header>
 <div class="hero"><div class="w"><div class="crumb">${crumb}</div><h1>${esc(h1)}</h1><p>${esc(lead)}</p>
@@ -164,7 +187,7 @@ function layout({ title, desc, path, h1, lead, crumb, body, schema, data, image 
 <footer><div class="w"><div><b style="color:#fff">فروعنا:</b> ${branches.map(b => `<a href="/${b.slug}">عيادة أسنان ${esc(b.area)}</a>`).join('')}</div>
 <div><b style="color:#fff">خدماتنا:</b> ${services.map(s => `<a href="/${s.slug}">${esc(s.title)}</a>`).join('')}</div>
 <div><b style="color:#fff">المدونة:</b> <a href="/blog">نصايح ومعلومات عن الأسنان</a></div>
-<div class="v">© ${BRAND_EN} · v${PAGES_VERSION}</div></div></footer></body></html>`;
+<div class="v">© ${BRAND_EN} · v${PAGES_VERSION}</div></div></footer>${trackClicks(cfg)}</body></html>`;
 }
 
 const faqBlock = (list, title) => list.length ? `<section><h2>${esc(title)}</h2>${list.map(([q, a]) => `<details><summary>${esc(q)}</summary><p>${esc(a)}</p></details>`).join('')}</section>` : '';
@@ -249,8 +272,8 @@ function servicePage(s, data) {
   const C = S[s.key];
   const kw = s.kw;
   const areas = branches.map(b => b.area);
-  const title = `${kw} في ${joinAr(areas)}${s.price ? ' | الأسعار ' + fromTxt(s) : ''} | ${BRAND}`;
-  const desc = clip((C ? C.desc : descOf(s)) + (s.price ? ` الأسعار ${fromTxt(s)}.` : '') + (areas.length ? ` في فروع ${joinAr(areas)}.` : '') + ' احجز أونلاين.', 160);
+  const title = String(s.seoTitle || '').trim() || `${kw} في ${joinAr(areas)}${s.price ? ' | الأسعار ' + fromTxt(s) : ''} | ${BRAND}`;
+  const desc = String(s.seoDesc || '').trim() ? clip(s.seoDesc, 160) : clip((C ? C.desc : descOf(s)) + (s.price ? ` الأسعار ${fromTxt(s)}.` : '') + (areas.length ? ` في فروع ${joinAr(areas)}.` : '') + ' احجز أونلاين.', 160);
   const dbFaqs = allFaqs.filter(f => faqForSvc(f, s)).map(f => [f.q, f.a]);
   const priceFaq = [`سعر ${kw} كام؟`, s.price ? `أسعار ${kw} تبدأ من ${money(s.price.min)}، والسعر النهائي بيتحدد بعد الكشف حسب حالتك وعدد الأسنان والمادة المستخدمة.` : `سعر ${kw} بيتحدد بعد الكشف حسب حالتك، وبتاخد خطة علاج مكتوبة فيها التكلفة قبل ما تبدأ.`];
   const faqs = [priceFaq, ...(C ? C.faqs : []), ...dbFaqs].filter((f, i, a) => a.findIndex(x => x[0] === f[0]) === i).slice(0, 12);
@@ -305,12 +328,43 @@ ${faqBlock(faqs, `أسئلة عن ${kw} في ${area}`)}
 
 // ---------- المدونة ----------
 const BLOG_CSS = `.post{display:block;border:1px solid #eee;border-radius:16px;padding:16px;text-decoration:none;color:inherit;background:#fffdf7;margin-bottom:12px}.post b{display:block;color:#111827;font-size:18px;line-height:1.6}.post span{font-size:14px;color:#6b7280}.post time,.meta{font-size:12.5px;color:#9ca3af;font-weight:700}`;
-const posts = () => POSTS.slice().sort((a, b) => String(b.date).localeCompare(String(a.date)));
+// مقالات اللوحة (cfg.posts): العنوان الفرعي سطر بيبدأ بـ ## والفقرات بينها سطر فاضي، والأسئلة "س: ... / ج: ..."
+function parseBody(t, title) {
+  const secs = []; let cur = null, buf = [];
+  const flush = () => { const x = buf.join(' ').trim(); if (x) { if (!cur) { cur = [title, []]; secs.push(cur); } cur[1].push(x); } buf = []; };
+  String(t || '').replace(/\r/g, '').split('\n').forEach(l => {
+    const m = l.match(/^\s*#{1,3}\s*(.+)$/);
+    if (m) { flush(); cur = [m[1].trim(), []]; secs.push(cur); } else if (!l.trim()) flush(); else buf.push(l.trim());
+  });
+  flush(); return secs.filter(s => s[1].length);
+}
+function parseFaqs(t) {
+  const out = []; let q = null;
+  String(t || '').replace(/\r/g, '').split('\n').forEach(l => {
+    const x = l.trim(); let m;
+    if ((m = x.match(/^(?:س|سؤال|Q)\s*[:：\-]\s*(.+)$/i))) { q = [m[1].trim(), '']; out.push(q); }
+    else if (q && (m = x.match(/^(?:ج|جواب|الإجابة|إجابة|A)\s*[:：\-]\s*(.+)$/i))) q[1] = (q[1] + ' ' + m[1]).trim();
+    else if (x && q && q[1]) q[1] += ' ' + x;
+  });
+  return out.filter(f => f[0] && f[1]);
+}
+const cairoToday = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Cairo' });
+const dashPosts = cfg => (Array.isArray(cfg.posts) ? cfg.posts : [])
+  .filter(p => p && !p.hidden && p.title && /^[a-z0-9][a-z0-9-]*$/.test(String(p.slug || '')) && p.slug !== 'index')
+  .map(p => ({ slug: p.slug, date: /^\d{4}-\d{2}-\d{2}$/.test(String(p.date || '')) ? p.date : cairoToday(), updated: /^\d{4}-\d{2}-\d{2}$/.test(String(p.updated || '')) ? p.updated : undefined,
+    title: String(p.title), desc: String(p.desc || '').trim() || clip(String(p.body || '').replace(/^\s*#.*$/mg, ''), 155), image: /^https?:\/\//.test(String(p.image || '')) ? p.image : '',
+    services: Array.isArray(p.services) ? p.services : [], sections: parseBody(p.body, p.title), faqs: parseFaqs(p.faqs) }))
+  .filter(p => p.date <= cairoToday() && p.sections.length);
+const posts = data => {
+  const own = new Set(POSTS.map(p => p.slug));
+  const extra = dashPosts((data && data.cfg) || {}).filter((p, i, a) => !own.has(p.slug) && a.findIndex(x => x.slug === p.slug) === i);
+  return POSTS.concat(extra).sort((a, b) => String(b.date).localeCompare(String(a.date)));
+};
 const arDate = d => { try { return new Date(d + 'T12:00:00Z').toLocaleDateString('ar-EG', { year: 'numeric', month: 'long', day: 'numeric' }); } catch (e) { return d; } };
 const svcByKey = (data, k) => data.services.find(s => s.key === k || s.id === k || s.slug === k);
 
 function blogIndex(data) {
-  const list = posts();
+  const list = posts(data);
   const body = `<style>${BLOG_CSS}</style><section><h2>أحدث المقالات</h2>${list.map(p => `<a class="post" href="/blog/${p.slug}"><time datetime="${p.date}">${esc(arDate(p.date))}</time><b>${esc(p.title)}</b><span>${esc(p.desc)}</span></a>`).join('') || '<p>قريب هتلاقي هنا مقالات ونصايح عن صحة الأسنان.</p>'}</section>`;
   const schema = { '@context': 'https://schema.org', '@type': 'Blog', name: `مدونة ${BRAND}`, url: SITE + '/blog', inLanguage: 'ar', publisher: { '@type': 'Organization', name: BRAND, logo: LOGO }, blogPost: list.slice(0, 30).map(p => ({ '@type': 'BlogPosting', headline: p.title, url: SITE + '/blog/' + p.slug, datePublished: p.date })) };
   return layout({ title: `مدونة ${BRAND} | نصايح ومعلومات عن الأسنان`, desc: 'مقالات ونصايح من دكاترة نيو إيرا لطب الأسنان: زراعة، تقويم، علاج عصب، تنظيف جير وتجميل — في فيصل وحلوان والأخصاص.', path: '/blog', h1: `مدونة ${BRAND}`, lead: 'نصايح ومعلومات عن صحة وتجميل الأسنان من دكاترتنا.', crumb: '<a href="/">الرئيسية</a> › المدونة', body, data, schema: [schema, crumbSchema([['الرئيسية', '/'], ['المدونة', '/blog']])] });
@@ -318,7 +372,7 @@ function blogIndex(data) {
 
 function blogPost(p, data) {
   const rel = (p.services || []).map(k => svcByKey(data, k)).filter(Boolean);
-  const more = posts().filter(x => x.slug !== p.slug).slice(0, 4);
+  const more = posts(data).filter(x => x.slug !== p.slug).slice(0, 4);
   const body = `<style>${BLOG_CSS}</style><section><p class="meta">📅 ${esc(arDate(p.date))} · فريق ${BRAND}</p>${p.image ? `<img class="img" src="${esc(p.image)}" alt="${esc(p.title)}" width="960" height="360">` : ''}</section>
 ${(p.sections || []).map(([h, ps]) => `<section><h2>${esc(h)}</h2>${ps.map(x => `<p>${esc(x)}</p>`).join('')}</section>`).join('')}
 ${faqBlock(p.faqs || [], 'أسئلة شائعة')}
@@ -331,7 +385,7 @@ ${more.length ? `<section><h2>مقالات تانية</h2>${more.map(x => `<a cl
 
 function sitemap(data) {
   const d = new Date().toISOString().slice(0, 10);
-  const urls = [['/', '1.0'], ...data.branches.map(b => ['/' + b.slug, '0.9']), ...data.services.map(s => ['/' + s.slug, '0.8']), ...data.combos.map(c => ['/' + c.slug, '0.7']), ['/blog', '0.7'], ...posts().map(p => ['/blog/' + p.slug, '0.6'])];
+  const urls = [['/', '1.0'], ...data.branches.map(b => ['/' + b.slug, '0.9']), ...data.services.map(s => ['/' + s.slug, '0.8']), ...data.combos.map(c => ['/' + c.slug, '0.7']), ['/blog', '0.7'], ...posts(data).map(p => ['/blog/' + p.slug, '0.6'])];
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map(([p, pr]) => `  <url><loc>${SITE}${p}</loc><lastmod>${d}</lastmod><priority>${pr}</priority></url>`).join('\n')}\n</urlset>\n`;
 }
 
@@ -347,12 +401,17 @@ async function handler(req, res) {
     const q = req.query || {};
     const data = await loadData();
     res.setHeader('Cache-Control', 'public, max-age=300, s-maxage=3600, stale-while-revalidate=86400');
+    if (q.gverify) { // ملف تحقق Search Console (اسمه بيتكتب في اللوحة)
+      const f = String(q.gverify).toLowerCase(), want = String(data.cfg.seo.gscFile || '').trim().toLowerCase();
+      if (want && f === want && /^google[a-z0-9]+\.html$/.test(want)) { res.setHeader('Content-Type', 'text/html; charset=utf-8'); return res.status(200).send('google-site-verification: ' + want); }
+      res.setHeader('Cache-Control', 'no-store'); return res.status(404).send('not found');
+    }
     if (q.sitemap) { res.setHeader('Content-Type', 'application/xml; charset=utf-8'); return res.status(200).send(sitemap(data)); }
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     if (q.blog) {
       const bs = latin(q.blog);
       if (bs === 'index' || bs === 'blog') return res.status(200).send(blogIndex(data));
-      const p = POSTS.find(x => x.slug === bs); if (p) return res.status(200).send(blogPost(p, data));
+      const p = posts(data).find(x => x.slug === bs); if (p) return res.status(200).send(blogPost(p, data));
     }
     const slug = latin(q.slug);
     if (slug === 'blog') return res.status(200).send(blogIndex(data));
