@@ -1,5 +1,0 @@
-const FS='https://firestore.googleapis.com/v1/projects/new-era-dental-center/databases/(default)/documents';
-const val=v=>!v?null:'stringValue' in v?v.stringValue:'integerValue' in v?Number(v.integerValue):'doubleValue' in v?v.doubleValue:'booleanValue' in v?v.booleanValue:'arrayValue' in v?(v.arrayValue.values||[]).map(val):'mapValue' in v?Object.fromEntries(Object.entries(v.mapValue.fields||{}).map(([k,x])=>[k,val(x)])):null;
-const list=async c=>((await (await fetch(`${FS}/${c}?pageSize=300`)).json()).documents||[]).map(d=>({id:d.name.split('/').pop(),...Object.fromEntries(Object.entries(d.fields||{}).map(([k,x])=>[k,val(x)]))}));
-module.exports=async(req,res)=>{const [sp,sv,dr,br]=await Promise.all(['specialties','services','public_doctors','branches'].map(list));
-res.json({specialties:sp,services:sv.map(s=>({id:s.id,name:s.name,specialtyId:s.specialtyId,priceFrom:s.priceFrom,active:s.active,branchIds:s.branchIds})),doctors:dr.map(d=>({id:d.id,name:d.name,specs:d.specs,branchIds:d.branchIds,keys:Object.keys(d)})),branches:br.map(b=>({id:b.id,name:b.name}))});};
