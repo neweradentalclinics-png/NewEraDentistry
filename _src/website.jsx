@@ -660,7 +660,7 @@
         // ترتيب أقسام الصفحة الرئيسية (بيتغير من لوحة التحكم ← الأقسام)
         const HOME_ORDER = ['about', 'services', 'vision', 'gallery', 'reviews', 'consult', 'booking', 'faq'];
         const homeOrder = cfg => { const o = (cfg.order || []).filter(k => HOME_ORDER.includes(k)); return [...o, ...HOME_ORDER.filter(k => !o.includes(k))]; };
-        const SITE_VERSION = '3.4';
+        const SITE_VERSION = '3.5';
         const SITE_LOGO = 'https://i.ibb.co/qLw7Tcqv/logo-Dr-shahenda-original.png';
         // أسماء وعناوين الفروع بالإنجليزي (من اللوحة ← التواصل) — للعرض بس، الحجز بيتسجل بنفس الفرع
         let BR_EN = {};
@@ -689,14 +689,17 @@
             } catch (e) { }
         };
         // تسجيل التحويلات (حجز / استشارة / واتساب / اتصال) في كل الأدوات المربوطة — من غير أي بيانات شخصية
-        const neTrack = (ev, p = {}) => {
+        // Conversions API: نفس الحجز بيتبعت لفيسبوك من السيرفر (مشروع صفحة الحجز /api/capi) بنفس الكود عشان ميتحسبش مرتين
+        const neCk = n => (document.cookie.match('(?:^|; )' + n + '=([^;]*)') || [])[1] || '';
+        const neCapi = (code, phone) => { try { fetch('https://newera-booking.vercel.app/api/capi', { method: 'POST', keepalive: true, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code, phone, url: location.href, fbp: neCk('_fbp'), fbc: neCk('_fbc') }) }).catch(() => { }); } catch (e) { } };
+        const neTrack = (ev, p = {}, eid) => {
             try {
                 const m = { booking: ['generate_lead', 'Lead', 'SubmitForm'], consult: ['generate_lead', 'Contact', 'SubmitForm'], whatsapp: ['contact_whatsapp', 'Contact', 'ClickButton'], call: ['contact_call', 'Contact', 'Contact'] }[ev] || [ev, ev, ev];
                 if (window.dataLayer) window.dataLayer.push({ event: 'ne_' + ev, ...p });
                 if (window.gtag) window.gtag('event', m[0], { method: ev, ...p });
                 const st = (window.__neAds || {})[{ booking: 'adsBook', consult: 'adsBook', whatsapp: 'adsContact', call: 'adsContact' }[ev]];
                 if (window.gtag && st) window.gtag('event', 'conversion', { send_to: st });
-                if (window.fbq) window.fbq('track', m[1], p);
+                if (window.fbq) window.fbq('track', m[1], p, eid ? { eventID: eid } : undefined);
                 if (window.ttq && window.ttq.track) window.ttq.track(m[2], p);
             } catch (e) { }
         };
@@ -1705,7 +1708,7 @@
                         }
                     }
                     if (!res) setErr(T('حصل خطأ، جرب تاني', 'Something went wrong, try again'));
-                    else { if (!editing) neTrack('booking', { branch: (branch && branch.name) || '' }); onDone({ ...res, edited: editing, branch }); }
+                    else { if (!editing) { neTrack('booking', { branch: (branch && branch.name) || '' }, res.bookingCode); if (res.bookingCode) neCapi(res.bookingCode, res.phone); } onDone({ ...res, edited: editing, branch }); }
                 } catch (x) { console.error(x); setErr(x.message === 'LIMIT' ? T('الرقم ده عليه ' + BK_MAX_PER_PHONE + ' حجز جايين بالفعل. تقدر تعدّل أو تلغي حجز منهم من "متابعة بالكود"، أو كلّمنا على تليفون الفرع.', 'This number already has ' + BK_MAX_PER_PHONE + ' upcoming bookings. Change or cancel one from "Track by code", or call the branch.') : x.message === 'GONE' ? T('الحجز ده مبقاش موجود', 'Booking no longer exists') : T('حصل خطأ، اتأكد من النت وجرب تاني', 'Something went wrong, check your connection')); }
                 setBusy(false);
             };
