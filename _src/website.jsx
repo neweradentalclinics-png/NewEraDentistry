@@ -660,7 +660,28 @@
         // ترتيب أقسام الصفحة الرئيسية (بيتغير من لوحة التحكم ← الأقسام)
         const HOME_ORDER = ['about', 'services', 'vision', 'gallery', 'reviews', 'consult', 'booking', 'faq'];
         const homeOrder = cfg => { const o = (cfg.order || []).filter(k => HOME_ORDER.includes(k)); return [...o, ...HOME_ORDER.filter(k => !o.includes(k))]; };
-        const SITE_VERSION = '3.5';
+        const SITE_VERSION = '3.6';
+        // ===== مصدر الحجز: حملة ميتا / جوجل / الموقع / واتساب / مباشر — بيتحفظ أول ما الزائر يدخل (30 يوم) ويتسجل مع الحجز =====
+        const ATTR_KEY = 'ne_attrib_v1';
+        const neAttrib = (() => {
+            try {
+                const q = new URLSearchParams(location.search), g = k => String(q.get(k) || '').slice(0, 100);
+                const ref = (() => { try { return document.referrer ? new URL(document.referrer).hostname : ''; } catch (e) { return ''; } })();
+                const utm = { utm_source: g('utm_source'), utm_medium: g('utm_medium'), utm_campaign: g('utm_campaign'), utm_content: g('utm_content'), utm_term: g('utm_term') };
+                const src = (utm.utm_source || '').toLowerCase(), med = (utm.utm_medium || '').toLowerCase();
+                let channel = q.get('fbclid') || /facebook|fb|instagram|ig|meta/.test(src) ? 'meta' : q.get('gclid') || q.get('gbraid') || q.get('wbraid') || /google/.test(src) ? 'google' : /whatsapp|wa/.test(src) || /whatsapp|wa\.me/.test(ref) ? 'whatsapp' : /tiktok/.test(src) ? 'tiktok' : /neweradentalcenter/.test(ref) ? 'website' : /facebook|instagram/.test(ref) ? 'meta' : /google\./.test(ref) ? 'google' : '';
+                if (q.get('src')) channel = g('src').toLowerCase();
+                const paid = !!(q.get('fbclid') || q.get('gclid') || q.get('gbraid') || q.get('wbraid') || /cpc|paid|ads?|cpm/.test(med));
+                const cur = { channel: channel || 'direct', paid, ...Object.fromEntries(Object.entries(utm).filter(([, v]) => v)), ...(q.get('fbclid') ? { fbclid: '1' } : {}), ...(q.get('gclid') || q.get('gbraid') || q.get('wbraid') ? { gclid: '1' } : {}), ...(ref ? { ref: ref.slice(0, 80) } : {}), landing: location.pathname.slice(0, 60), at: new Date().toISOString() };
+                const old = lsGetA();
+                // أول لمسة إعلانية بتكسب (لو الزائر رجع بعدين مباشر، الحجز بيتحسب للإعلان اللي جابه)
+                const keep = old && Date.now() - Date.parse(old.at || 0) < 30 * 864e5 && (old.channel !== 'direct' && (cur.channel === 'direct' || cur.channel === 'website')) ? old : cur;
+                try { localStorage.setItem(ATTR_KEY, JSON.stringify(keep)); } catch (e) { }
+                return keep;
+            } catch (e) { return { channel: 'direct' }; }
+            function lsGetA() { try { return JSON.parse(localStorage.getItem(ATTR_KEY) || 'null'); } catch (e) { return null; } }
+        })();
+        const attribDoc = () => { const a = neAttrib || {}, o = {}; ['channel', 'utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term', 'fbclid', 'gclid', 'ref', 'landing'].forEach(k => { if (a[k]) o[k] = String(a[k]).slice(0, 100); }); o.paid = !!a.paid; o.via = 'website'; return o; };
         const SITE_LOGO = 'https://i.ibb.co/qLw7Tcqv/logo-Dr-shahenda-original.png';
         // أسماء وعناوين الفروع بالإنجليزي (من اللوحة ← التواصل) — للعرض بس، الحجز بيتسجل بنفس الفرع
         let BR_EN = {};
@@ -1672,7 +1693,7 @@
                                             const pbW = await pbAdd(tx);
                                             if (ss.exists) throw new Error('SLOT_TAKEN'); if (bs.exists) throw new Error('CODE_TAKEN');
                                             pbW();
-                                            tx.set(appRef, { ...full, phoneKey: pk, pbTok: tok, bookingCode: code, source: 'online', status: 'unconfirmed', createdAt: new Date().toISOString() });
+                                            tx.set(appRef, { ...full, phoneKey: pk, pbTok: tok, attrib: attribDoc(), bookingCode: code, source: 'online', status: 'unconfirmed', createdAt: new Date().toISOString() });
                                             tx.set(bRef, { appointmentId: appRef.id });
                                             tx.set(sRef, { branchId: full.branchId, doctorId: full.doctorId, date: full.date, time: full.time, at: Date.now(), appId: appRef.id });
                                         });
@@ -1699,7 +1720,7 @@
                                         const bs = await tx.get(bRef), pbW = await pbAdd(tx);
                                         if (bs.exists) throw new Error('CODE_TAKEN');
                                         pbW();
-                                        tx.set(appRef, { ...full, phoneKey: pk, pbTok: tok, bookingCode: code, source: 'online', status: 'unconfirmed', createdAt: new Date().toISOString() });
+                                        tx.set(appRef, { ...full, phoneKey: pk, pbTok: tok, attrib: attribDoc(), bookingCode: code, source: 'online', status: 'unconfirmed', createdAt: new Date().toISOString() });
                                         tx.set(bRef, { appointmentId: appRef.id });
                                     });
                                     res = { id: appRef.id, ...full, bookingCode: code };
