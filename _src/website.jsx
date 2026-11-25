@@ -17,16 +17,28 @@
         // بيانات الموقع العامة (الإعدادات، الفروع، الأسئلة، الدكاترة، الخدمات، التخصصات) بتيجي من نسخة واحدة على سيرفر Vercel
         // (api/public — بتتحدّث كل نص ساعة) بدل ما كل زائر يقرا ~140 مستند من Firestore. لوحة التحكم (#admin) بتفضل تقرا مباشر.
         // لو السيرفر وقع لأي سبب، الصفحة بترجع تقرا من Firestore زي الأول.
+        // الأكواد اللي اتعملت من الجهاز ده (صاحب الحجز يتابع من غير ما يكتب رقمه تاني)
+        const myCodes = () => { try { return JSON.parse(localStorage.getItem('ne_my_codes') || '[]'); } catch (e) { return []; } };
+        const addMyCode = c => { if (!c) return; try { localStorage.setItem('ne_my_codes', JSON.stringify([c, ...myCodes().filter(x => x !== c)].slice(0, 20))); } catch (e) {} };
+        const onlyDigits = v => String(v || '').replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d)).replace(/\D/g, '');
         let PUB_P = null;
         const getPub = () => PUB_P || (PUB_P = fetch('/api/public').then(r => r.ok ? r.json() : null).then(j => (j && j.ok ? j : null)).catch(() => null));
         // مكتبة رفع الصور بتتحمّل بس لما الأدمن يرفع صورة (الزوار مش محتاجينها)
         const loadStorage = () => (window.firebase && firebase.storage) ? Promise.resolve() : new Promise((ok, no) => { const sc = document.createElement('script'); sc.src = 'https://www.gstatic.com/firebasejs/10.8.0/firebase-storage-compat.js'; sc.integrity = 'sha384-yTXgVdKIoM5XuQZ1AGw9zFUgmu45OeHYpGDbbWtXHu/qOJxneVAXbw5Rh5CGninE'; sc.crossOrigin = 'anonymous'; sc.onload = ok; sc.onerror = () => no(new Error('مقدرتش أحمّل أداة رفع الصور — اتأكدي من النت')); document.head.appendChild(sc); });
         let db = null;
         let auth = null;
+        // مكتبة تسجيل الدخول بتتحمّل للوحة التحكم بس (index.html بيحمّلها لو الصفحة اتفتحت على #admin، وهنا لو حد دخل اللوحة بعد ما الصفحة فتحت)
+        const ensureAuth = () => auth ? Promise.resolve(auth) : new Promise((ok, no) => {
+            const done = () => { try { auth = firebase.auth(); ok(auth); } catch (x) { no(x); } };
+            if (window.firebase && firebase.auth) return done();
+            const sc = document.createElement('script'); sc.src = 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js';
+            sc.integrity = 'sha384-xtdq4MQqPj1dB5DQsuw9O7dh4kHhMP/Wp5u8O1jiaWiou13ZfJIgiccjtVK2pBhL'; sc.crossOrigin = 'anonymous';
+            sc.onload = done; sc.onerror = () => no(new Error('auth load failed')); document.head.appendChild(sc);
+        });
         try {
             if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
             db = firebase.firestore();
-            auth = firebase.auth();
+            if (firebase.auth) auth = firebase.auth();
         } catch(e) { console.error("Firebase error", e); }
 
         // --- Icons (Inline SVGs) ---
@@ -666,7 +678,7 @@
         // ترتيب أقسام الصفحة الرئيسية (بيتغير من لوحة التحكم ← الأقسام)
         const HOME_ORDER = ['about', 'services', 'vision', 'gallery', 'reviews', 'consult', 'booking', 'faq'];
         const homeOrder = cfg => { const o = (cfg.order || []).filter(k => HOME_ORDER.includes(k)); return [...o, ...HOME_ORDER.filter(k => !o.includes(k))]; };
-        const SITE_VERSION = '3.7';
+        const SITE_VERSION = '3.8';
         // ===== مصدر الحجز: حملة ميتا / جوجل / الموقع / واتساب / مباشر — بيتحفظ أول ما الزائر يدخل (30 يوم) ويتسجل مع الحجز =====
         const ATTR_KEY = 'ne_attrib_v1';
         const neAttrib = (() => {
@@ -1016,7 +1028,7 @@
             const [err, setErr] = useState('');
             const [openSvc, setOpenSvc] = useState(null);
             // لوحة الموقع لصاحبة الحساب بس (حسابات موظفين السيستم مش بتفتحها حتى لو على نفس الدومين)
-            useEffect(() => auth ? auth.onAuthStateChanged(u => setUser(ownerOk(u) ? u : null)) : setUser(null), []);
+            useEffect(() => { let un = null, dead = false; ensureAuth().then(a => { if (!dead) un = a.onAuthStateChanged(u => setUser(ownerOk(u) ? u : null)); }).catch(() => setUser(null)); return () => { dead = true; un && un(); }; }, []);
             const dirty = JSON.stringify(d) !== saved;
             useEffect(() => {
                 const h = e => { if (dirty) { e.preventDefault(); e.returnValue = ''; } };
@@ -1042,7 +1054,7 @@
                 window.addEventListener('keydown', h); return () => window.removeEventListener('keydown', h);
             });
             const discard = () => { if (confirm('ترجعي لآخر نسخة محفوظة؟ التغييرات اللي متحفظتش هتضيع.')) setD(JSON.parse(saved)); };
-            const login = async (e) => { e.preventDefault(); setErr(''); try { await auth.signInWithEmailAndPassword(e.target.em.value.trim(), e.target.pw.value); } catch (x) { setErr(x.code === 'auth/too-many-requests' ? 'محاولات كتير — استني شوية' : 'الإيميل أو الباسورد غلط'); } };
+            const login = async (e) => { e.preventDefault(); setErr(''); try { await (await ensureAuth()).signInWithEmailAndPassword(e.target.em.value.trim(), e.target.pw.value); } catch (x) { setErr(x.code === 'auth/too-many-requests' ? 'محاولات كتير — استني شوية' : 'الإيميل أو الباسورد غلط'); } };
             const resetPw = async (e) => { const em = e.target.form.em.value.trim(); if (!em) { setErr('اكتبي الإيميل الأول'); return; } try { await auth.sendPasswordResetEmail(em); setErr('اتبعت لينك تغيير الباسورد على الإيميل ✓'); } catch (x) { setErr('مقدرناش نبعت اللينك: ' + x.message); } };
 
             const inp = "w-full border border-gray-200 rounded-xl p-2.5 text-sm bg-white focus:border-pharaonic outline-none";
@@ -1739,7 +1751,7 @@
                         }
                     }
                     if (!res) setErr(T('حصل خطأ، جرب تاني', 'Something went wrong, try again'));
-                    else { if (!editing) { neTrack('booking', { branch: (branch && branch.name) || '' }, res.bookingCode); if (res.bookingCode) neCapi(res.bookingCode, res.phone); } onDone({ ...res, edited: editing, branch }); }
+                    else { if (!editing) { addMyCode(res.bookingCode); neTrack('booking', { branch: (branch && branch.name) || '' }, res.bookingCode); if (res.bookingCode) neCapi(res.bookingCode, res.phone); } onDone({ ...res, edited: editing, branch }); }
                 } catch (x) { console.error(x); setErr(x.message === 'LIMIT' ? T('الرقم ده عليه ' + BK_MAX_PER_PHONE + ' حجز جايين بالفعل. تقدر تعدّل أو تلغي حجز منهم من "متابعة بالكود"، أو كلّمنا على تليفون الفرع.', 'This number already has ' + BK_MAX_PER_PHONE + ' upcoming bookings. Change or cancel one from "Track by code", or call the branch.') : x.message === 'GONE' ? T('الحجز ده مبقاش موجود', 'Booking no longer exists') : T('حصل خطأ، اتأكد من النت وجرب تاني', 'Something went wrong, check your connection')); }
                 setBusy(false);
             };
@@ -1793,7 +1805,7 @@
                     let code = null;
                     for (let i = 0; i < 5 && !code; i++) { const c = bkCode(), ref = db.collection('consults').doc(c); try { await db.runTransaction(async tx => { if ((await tx.get(ref)).exists) throw new Error('TAKEN'); tx.set(ref, payload); }); code = c; } catch (x) { if (x.message !== 'TAKEN') throw x; } }
                     if (!code) throw new Error('TAKEN');
-                    neTrack('consult'); onDone({ code, ...payload });
+                    addMyCode(code); neTrack('consult'); onDone({ code, ...payload });
                 } catch (x) { console.error(x); setErr(T('حصل خطأ، اتأكد من النت وجرب تاني', 'Something went wrong, check your connection')); }
                 setBusy(false);
             };
@@ -1818,6 +1830,7 @@
         const BkTrack = ({ lang, branches, initialCode, onEdit }) => {
             const T = (ar, en) => lang === 'en' ? en : ar;
             const [code, setCode] = useState(initialCode || '');
+            const [last4, setLast4] = useState('');
             const [res, setRes] = useState(null);
             const [busy, setBusy] = useState(false);
             const [err, setErr] = useState('');
@@ -1826,11 +1839,16 @@
                 e && e.preventDefault(); setErr(''); setRes(null);
                 const c = (c0 || code).toUpperCase().trim();
                 if (!/^[A-Z0-9]{3,12}$/.test(c)) return setErr(T('الكود غلط', 'Invalid code'));
+                // حماية بيانات المريض: آخر 4 أرقام من الموبايل مع الكود (إلا لو الحجز اتعمل من نفس الجهاز)
+                const mine = myCodes().includes(c), l4 = onlyDigits(last4);
+                if (!mine && l4.length !== 4) return setErr(T('اكتب آخر 4 أرقام من رقم الموبايل اللي حجزت بيه', 'Enter the last 4 digits of your phone number'));
+                const ok = d => mine || onlyDigits(d && d.phone).slice(-4) === l4;
+                const bad = T('الكود أو رقم الموبايل مش مطابقين', 'Code and phone don\'t match');
                 setBusy(true);
                 try {
                     const bk = await db.collection('online_bookings').doc(c).get();
-                    if (bk.exists) { const ap = await db.collection('appointments').doc(bk.data().appointmentId).get(); if (ap.exists) setRes({ type: 'booking', id: ap.id, ...ap.data() }); else setErr(T('مفيش حجز بالكود ده', 'No booking with this code')); }
-                    else { const cs = await db.collection('consults').doc(c).get(); if (cs.exists) setRes({ type: 'consult', id: cs.id, ...cs.data() }); else setErr(T('مفيش حجز ولا استشارة بالكود ده', 'Nothing found with this code')); }
+                    if (bk.exists) { const ap = await db.collection('appointments').doc(bk.data().appointmentId).get(); if (ap.exists && !ok(ap.data())) setErr(bad); else if (ap.exists) { addMyCode(c); setRes({ type: 'booking', id: ap.id, ...ap.data() }); } else setErr(T('مفيش حجز بالكود ده', 'No booking with this code')); }
+                    else { const cs = await db.collection('consults').doc(c).get(); if (cs.exists && !ok(cs.data())) setErr(bad); else if (cs.exists) { addMyCode(c); setRes({ type: 'consult', id: cs.id, ...cs.data() }); } else setErr(T('مفيش حجز ولا استشارة بالكود ده', 'Nothing found with this code')); }
                 } catch (x) { console.error(x); setErr(T('حصل خطأ في البحث', 'Search error')); }
                 setBusy(false);
             };
@@ -1853,7 +1871,7 @@
             const b = res && branches.find(x => x.id === res.branchId);
             return (
                 <div className="space-y-5">
-                    <form onSubmit={look} className="flex gap-2"><input value={code} onChange={e => setCode(e.target.value)} placeholder={T('اكتب الكود', 'Enter your code')} dir="ltr" className={bkInp + ' text-center font-mono tracking-widest uppercase'} /><button disabled={busy} className="bg-gray-900 text-white px-6 rounded-xl font-black shrink-0">{busy ? '...' : T('بحث', 'Search')}</button></form>
+                    <form onSubmit={look} className="flex gap-2 flex-wrap"><input value={code} onChange={e => setCode(e.target.value)} placeholder={T('اكتب الكود', 'Enter your code')} dir="ltr" className={bkInp + ' text-center font-mono tracking-widest uppercase flex-1 min-w-0'} /><input value={last4} onChange={e => setLast4(e.target.value)} inputMode="numeric" maxLength={4} placeholder={T('آخر 4 أرقام', 'Last 4 digits')} dir="ltr" className={bkInp + ' text-center font-mono w-32 shrink-0'} /><button disabled={busy} className="bg-gray-900 text-white px-6 rounded-xl font-black shrink-0">{busy ? '...' : T('بحث', 'Search')}</button></form>
                     {err && <p className="text-sm font-bold text-red-500 text-center">{err}</p>}
                     {res && res.type === 'booking' && <div className="bg-gray-50 rounded-2xl p-5 border border-gray-100 space-y-1.5 animate-fade-in">
                         <p className="font-black text-gray-900 text-lg">{res.patientName}</p>
