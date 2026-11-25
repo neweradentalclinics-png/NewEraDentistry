@@ -13,6 +13,12 @@
         // تخزين بسيط على جهاز الزائر (لو المتصفح مانعه بنكمّل عادي)
         const lsGet = k => { try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch (e) { return null; } };
         const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
+        // ===== توفير قراءات Firestore =====
+        // بيانات الموقع العامة (الإعدادات، الفروع، الأسئلة، الدكاترة، الخدمات، التخصصات) بتيجي من نسخة واحدة على سيرفر Vercel
+        // (api/public — بتتحدّث كل نص ساعة) بدل ما كل زائر يقرا ~140 مستند من Firestore. لوحة التحكم (#admin) بتفضل تقرا مباشر.
+        // لو السيرفر وقع لأي سبب، الصفحة بترجع تقرا من Firestore زي الأول.
+        let PUB_P = null;
+        const getPub = () => PUB_P || (PUB_P = fetch('/api/public').then(r => r.ok ? r.json() : null).then(j => (j && j.ok ? j : null)).catch(() => null));
         // مكتبة رفع الصور بتتحمّل بس لما الأدمن يرفع صورة (الزوار مش محتاجينها)
         const loadStorage = () => (window.firebase && firebase.storage) ? Promise.resolve() : new Promise((ok, no) => { const sc = document.createElement('script'); sc.src = 'https://www.gstatic.com/firebasejs/10.8.0/firebase-storage-compat.js'; sc.integrity = 'sha384-yTXgVdKIoM5XuQZ1AGw9zFUgmu45OeHYpGDbbWtXHu/qOJxneVAXbw5Rh5CGninE'; sc.crossOrigin = 'anonymous'; sc.onload = ok; sc.onerror = () => no(new Error('مقدرتش أحمّل أداة رفع الصور — اتأكدي من النت')); document.head.appendChild(sc); });
         let db = null;
@@ -660,7 +666,7 @@
         // ترتيب أقسام الصفحة الرئيسية (بيتغير من لوحة التحكم ← الأقسام)
         const HOME_ORDER = ['about', 'services', 'vision', 'gallery', 'reviews', 'consult', 'booking', 'faq'];
         const homeOrder = cfg => { const o = (cfg.order || []).filter(k => HOME_ORDER.includes(k)); return [...o, ...HOME_ORDER.filter(k => !o.includes(k))]; };
-        const SITE_VERSION = '3.6';
+        const SITE_VERSION = '3.7';
         // ===== مصدر الحجز: حملة ميتا / جوجل / الموقع / واتساب / مباشر — بيتحفظ أول ما الزائر يدخل (30 يوم) ويتسجل مع الحجز =====
         const ATTR_KEY = 'ne_attrib_v1';
         const neAttrib = (() => {
@@ -1410,7 +1416,9 @@
             const [topic, setTopic] = useState('');
             const [more, setMore] = useState(false);
             useEffect(() => { setMore(false); }, [topic, q]);
-            useEffect(() => { if (!db) return; return db.collection('faqs').where('published', '==', true).onSnapshot(s => setFaqs(s.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (a.order ?? 999) - (b.order ?? 999) || (b.createdAt || '').localeCompare(a.createdAt || ''))), e => console.error(e)); }, []);
+            useEffect(() => { if (!db) return; let un = null, dead = false; const sortF = a => a.sort((a, b) => (a.order ?? 999) - (b.order ?? 999) || (b.createdAt || '').localeCompare(a.createdAt || ''));
+                getPub().then(pb => { if (dead) return; if (pb) { setFaqs(sortF((pb.faqs || []).slice())); return; } un = db.collection('faqs').where('published', '==', true).onSnapshot(s => setFaqs(sortF(s.docs.map(d => ({ id: d.id, ...d.data() })))), () => {}); });
+                return () => { dead = true; un && un(); }; }, []);
             const en = lang === 'en';
             const mine = (svc ? faqs.filter(f => faqForSvc(f, svc)) : faqs).map(f => en ? { ...f, q: f.qEn || f.q, a: f.aEn || f.a, topicL: f.topicEn || f.topic } : { ...f, topicL: f.topic });
             if (!mine.length) return null;
@@ -1489,12 +1497,14 @@
                 if (!db) return;
                 const map = s => s.docs.map(d => ({ id: d.id, ...d.data() }));
                 const sortO = a => a.sort((x, y) => (x.order ?? 999) - (y.order ?? 999) || (x.name || '').localeCompare(y.name || '', 'ar'));
-                const u = [
+                let u = [], dead = false;
+                const live = () => { u = [
                     db.collection('public_doctors').onSnapshot(s => setSt(p => ({ ...p, doctors: map(s), ready: true })), e => console.error(e)),
                     db.collection('services').onSnapshot(s => setSt(p => ({ ...p, services: sortO(map(s)) })), e => console.error(e)),
                     db.collection('specialties').onSnapshot(s => setSt(p => ({ ...p, specialties: sortO(map(s)) })), e => console.error(e))
-                ];
-                return () => u.forEach(f => f());
+                ]; };
+                getPub().then(pb => { if (dead) return; if (pb && pb.doctors) setSt({ doctors: pb.doctors, services: sortO((pb.services || []).slice()), specialties: sortO((pb.specialties || []).slice()), ready: true }); else live(); });
+                return () => { dead = true; u.forEach(f => f()); };
             }, []);
             return st;
         };
@@ -2053,12 +2063,18 @@
                 window.addEventListener('hashchange', h);
                 return () => window.removeEventListener('hashchange', h);
             }, []);
+            // أول ما حد يفتح لوحة التحكم، الموقع كله بيقرا مباشر (عشان التعديل يبقى على أحدث نسخة)
+            const everAdmin = useRef(isAdmin); if (isAdmin) everAdmin.current = true;
             useEffect(() => {
                 if (!db) return;
-                return db.collection('settings').doc('site').onSnapshot(
+                let un = null, dead = false;
+                const live = () => { un = db.collection('settings').doc('site').onSnapshot(
                     (doc) => { if (doc.exists) { setCfg(mergeCfg(doc.data())); lsSet('ne_site_cfg', doc.data()); } setCfgLoaded(true); },
-                    () => setCfgLoaded(true));
-            }, []);
+                    () => setCfgLoaded(true)); };
+                if (everAdmin.current) live();
+                else getPub().then(pb => { if (dead) return; if (pb && pb.site) { setCfg(mergeCfg(pb.site)); lsSet('ne_site_cfg', pb.site); setCfgLoaded(true); } else live(); });
+                return () => { dead = true; un && un(); };
+            }, [isAdmin]);
             
             const sliderRef = useRef(null);
             const reviewSliderRef = useRef(null);
@@ -2089,7 +2105,7 @@
             useEffect(() => { loadTrackers(cfg.seo || {}); }, [cfg.seo]);
             // بيانات منظمة لجوجل (Schema.org): العيادة + كل فرع + الخدمات + الأسئلة الشائعة
             const [schemaFaqs, setSchemaFaqs] = useState([]);
-            useEffect(() => { if (!db) return; try { db.collection('faqs').where('published', '==', true).get().then(s => setSchemaFaqs(s.docs.map(x => x.data()).filter(f => f.q && f.a).slice(0, 30))).catch(() => {}); } catch (e) {} }, []);
+            useEffect(() => { if (!db) return; getPub().then(pb => { if (pb) { setSchemaFaqs((pb.faqs || []).filter(f => f.q && f.a).slice(0, 30)); return; } try { db.collection('faqs').where('published', '==', true).get().then(s => setSchemaFaqs(s.docs.map(x => x.data()).filter(f => f.q && f.a).slice(0, 30))).catch(() => {}); } catch (e) {} }); }, []);
             useEffect(() => {
                 const url = location.href.split('#')[0], phones = (cfg.phones || []).filter(Boolean);
                 const se0 = cfg.seo || {};
@@ -2109,18 +2125,17 @@
             const [brTry, setBrTry] = useState(0);
             useEffect(() => {
                 if (!db) return;
-                let t;
-                const unsub = db.collection('branches').onSnapshot((snap) => {
-                    const brs = snap.docs.map(doc => ({ id: doc.id, ...doc.data() })).sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ar'));
-                    setDbBranches(brs); lsSet('ne_branches', brs);
-                    setBrStatus('ok');
-                }, (err) => {
+                let t, unsub = null, dead = false;
+                const apply = list => { const brs = list.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ar')); setDbBranches(brs); lsSet('ne_branches', brs); setBrStatus('ok'); };
+                const live = () => { unsub = db.collection('branches').onSnapshot((snap) => apply(snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))), (err) => {
                     console.error('branches load failed:', err && err.code, err);
                     setBrStatus(s0 => s0 === 'ok' ? 'ok' : 'error');
                     t = setTimeout(() => setBrTry(n => n + 1), 4000);
-                });
-                return () => { unsub(); clearTimeout(t); };
-            }, [brTry]);
+                }); };
+                if (everAdmin.current || brTry > 0) live();
+                else getPub().then(pb => { if (dead) return; if (pb && Array.isArray(pb.branches)) apply(pb.branches.slice()); else live(); });
+                return () => { dead = true; unsub && unsub(); clearTimeout(t); };
+            }, [brTry, isAdmin]);
 
             useEffect(() => {
                 const handleScroll = () => { setScrolled(window.scrollY > 30); };
