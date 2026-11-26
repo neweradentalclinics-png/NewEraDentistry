@@ -284,7 +284,8 @@
             og: { l: 'صورة مشاركة اللينك (واتساب/فيسبوك/جوجل)', w: 1200, h: 630 },
             blog: { l: 'صورة المقال', w: 1200, h: 630 },
             cs: { l: 'صورة قسم مخصص', w: 1200, h: 900 },
-            csCard: { l: 'صورة كارت', w: 800, h: 600 }
+            csCard: { l: 'صورة كارت', w: 800, h: 600 },
+            branch: { l: 'صورة الفرع', w: 1200, h: 800 }
         };
         const gcd = (a, b) => b ? gcd(b, a % b) : a;
         const ratioTxt = (s) => { const g = gcd(s.w, s.h); return `${s.w / g}:${s.h / g}`; };
@@ -529,6 +530,7 @@
                 </div>
 
                 <div className={card}><p className="font-black text-sm">🇪🇬 العنوان والوصف (عربي)</p>
+                    <p className="text-[11px] font-bold text-amber-700 bg-amber-50 rounded-lg p-2 leading-5">ℹ️ عنوان ووصف الصفحة الرئيسية اللي جوجل بيعرضهم بقوا ثابتين في الموقع نفسه (فيهم سعر الكشف و"احجز دلوقتي")، عشان جوجل يشوف نسخة واحدة بس. الخانات دي بتستخدمها أدوات اللوحة زي المسوّق الذكي. لو عايز تغيّر عنوان الرئيسية قول للمبرمج.</p>
                     <label className="block text-xs font-bold text-gray-600">عنوان الموقع {seoCnt(se.title, 30, 60)}<input value={se.title || ''} onChange={e => set('title', e.target.value)} className={inp + ' mt-1'} /></label>
                     <label className="block text-xs font-bold text-gray-600">وصف الموقع {seoCnt(se.desc, 110, 160)}<textarea rows="3" value={se.desc || ''} onChange={e => set('desc', e.target.value)} className={inp + ' mt-1'} placeholder="مركز نيو إيرا لطب وتجميل الأسنان — زراعة، تقويم، ابتسامة هوليود… فروع فيصل وحلوان والصف. احجز أونلاين." /></label>
                     <div className="border border-gray-200 rounded-xl p-3 bg-gray-50"><p className="text-[11px] text-gray-400 font-bold mb-1">شكلها على جوجل تقريباً:</p><p className="text-[#1a0dab] text-base font-bold truncate">{se.title || document.title}</p><p className="text-[#006621] text-xs truncate" dir="ltr">{site}</p><p className="text-gray-600 text-xs line-clamp-2">{se.desc || '—'}</p></div>
@@ -621,6 +623,29 @@
                 {brs.map(b => <div key={b.id} className="grid sm:grid-cols-3 gap-2 items-center"><span className="text-xs font-black text-gray-700">{b.name}</span><input value={(en[b.id] || {}).name || ''} dir="ltr" onChange={e => setB(b.id, 'name', e.target.value)} className={inp} placeholder="Branch name" /><input value={(en[b.id] || {}).address || ''} dir="ltr" onChange={e => setB(b.id, 'address', e.target.value)} className={inp} placeholder="Address (English)" /></div>)}</div>;
         };
 
+        // صفحة كل فرع على جوجل (/faisal و /helwan و /saff): صور الفرع وكلام خاص بيه وعنوان ووصف لجوجل
+        const BranchPagesAdmin = ({ d, setD, inp, card }) => {
+            const [brs, setBrs] = useState([]);
+            const [open, setOpen] = useState(null);
+            useEffect(() => { if (!db) return; return db.collection('branches').onSnapshot(s => setBrs(s.docs.map(x => ({ id: x.id, ...x.data() })).filter(b => b.name && b.active !== false)), () => {}); }, []);
+            const bp = d.branchPages || {};
+            const setP = (id, k, v) => setD(p => ({ ...p, branchPages: { ...(p.branchPages || {}), [id]: { ...((p.branchPages || {})[id] || {}), [k]: v } } }));
+            if (!brs.length) return null;
+            return <div className={card}><p className="font-black text-sm">📍 صفحات الفروع على جوجل</p>
+                <p className="text-[11px] text-gray-500 font-bold -mt-1 leading-5">كل فرع ليه صفحة لوحده بيقراها جوجل. صور حقيقية للفرع من جوه وبره وكلام خاص بيه بيخلّوا جوجل يدخّلها في نتايج البحث. العنوان والوصف لو سبتهم فاضيين بيتعملوا تلقائي بالسعر و"احجز دلوقتي".</p>
+                {brs.map(b => { const x = bp[b.id] || {}, on = open === b.id; return <div key={b.id} className="border border-gray-100 rounded-xl">
+                    <button type="button" onClick={() => setOpen(on ? null : b.id)} className="w-full flex items-center justify-between p-3 text-sm font-black"><span>{b.name}</span><span className="text-[11px] text-gray-400">{(x.photos || []).length} صورة {on ? '▲' : '▼'}</span></button>
+                    {on && <div className="p-3 pt-0 space-y-2">
+                        <ImgList slot={SLOTS.branch} list={x.photos || []} onChange={v => setP(b.id, 'photos', v)} />
+                        <textarea rows="4" value={x.about || ''} onChange={e => setP(b.id, 'about', e.target.value)} className={inp} placeholder="كلام عن الفرع ده بالذات: إزاي توصله، اللي بيميزه، الأجهزة اللي فيه… (سطر فاضي بين كل فقرة)" />
+                        <input value={x.title || ''} onChange={e => setP(b.id, 'title', e.target.value)} className={inp} placeholder="عنوان الصفحة في جوجل (اختياري — فاضي = تلقائي)" />
+                        <textarea rows="2" value={x.desc || ''} onChange={e => setP(b.id, 'desc', e.target.value)} className={inp} placeholder="وصف الصفحة في جوجل (اختياري — فاضي = تلقائي)" />
+                        <p className="text-[11px] text-gray-400 font-bold">العنوان {(x.title || '').length}/60 · الوصف {(x.desc || '').length}/160</p>
+                    </div>}
+                </div>; })}
+            </div>;
+        };
+
         // ===== 📝 المدونة من اللوحة: مقالات جديدة بتنزل على /blog وفي الـ sitemap (مع المقالات الأساسية) =====
         const blogToday = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Cairo' });
         const BlogAdmin = ({ d, setD, inp, card }) => {
@@ -678,7 +703,7 @@
         // ترتيب أقسام الصفحة الرئيسية (بيتغير من لوحة التحكم ← الأقسام)
         const HOME_ORDER = ['about', 'services', 'vision', 'gallery', 'reviews', 'consult', 'booking', 'faq'];
         const homeOrder = cfg => { const o = (cfg.order || []).filter(k => HOME_ORDER.includes(k)); return [...o, ...HOME_ORDER.filter(k => !o.includes(k))]; };
-        const SITE_VERSION = '3.8';
+        const SITE_VERSION = '3.9';
         // ===== مصدر الحجز: حملة ميتا / جوجل / الموقع / واتساب / مباشر — بيتحفظ أول ما الزائر يدخل (30 يوم) ويتسجل مع الحجز =====
         const ATTR_KEY = 'ne_attrib_v1';
         const neAttrib = (() => {
@@ -1224,6 +1249,7 @@
                                 <div className={card}><p className="font-black text-sm">روابط السوشيال ميديا (اللي فاضي مش بيظهر)</p>
                                     {[['facebook', 'فيسبوك'], ['instagram', 'إنستجرام'], ['youtube', 'يوتيوب'], ['tiktok', 'تيك توك']].map(([k, n]) => <label key={k} className="block text-xs font-bold text-gray-600">{n}<input value={d.socials[k] || ''} dir="ltr" onChange={e => upObj('socials', k, e.target.value.trim())} className={inp + ' mt-1'} placeholder="https://..." /></label>)}</div>
                                 <BranchEnAdmin d={d} setD={setD} inp={inp} card={card} />
+                                <BranchPagesAdmin d={d} setD={setD} inp={inp} card={card} />
                                 <p className="text-[11px] text-gray-500 font-bold px-1">عناوين الفروع ولينكات الخريطة بتتعدل من السيستم (الإعدادات ← الفروع)، وبتظهر هنا تلقائي.</p></>}
 
                             {tab === 'marketer' && <><H t="🚀 المسوّق الذكي" s="جاوبي على كام سؤال، وهو يعملك خطة الظهور على جوجل والإعلانات والمحتوى — ويطبّق اللي يخص الموقع بدوسة." /><Marketer d={d} setD={setD} go={setTab} user={user} /></>}
@@ -2108,7 +2134,8 @@
             const setMeta = (attr, key, val) => { if (!val) return; let m = document.querySelector('meta[' + attr + '="' + key + '"]'); if (!m) { m = document.createElement('meta'); m.setAttribute(attr, key); document.head.appendChild(m); } m.content = val; };
             useEffect(() => {
                 const se = cfg.seo || {}, en = lang === 'en';
-                const title = (en && se.titleEn) || se.title, desc = (en && se.descEn) || se.desc;
+                // العربي: العنوان والوصف الثابتين في index.html هما اللي جوجل بيشوفهم (فيهم السعر و"احجز دلوقتي")، فمش بنغيّرهم بالجافاسكريبت عشان ميبقاش في نسختين
+                const title = en ? se.titleEn : '', desc = en ? se.descEn : '';
                 if (title) document.title = title;
                 setMeta('name', 'description', desc);
                 // مشاركة اللينك (واتساب/فيسبوك)

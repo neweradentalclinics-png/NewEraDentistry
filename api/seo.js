@@ -1,7 +1,7 @@
 // صفحات حقيقية لجوجل: صفحة لكل فرع، صفحة لكل خدمة، وصفحة لكل "خدمة + فرع" (زي: زراعة أسنان حلوان) + sitemap.xml
 // البيانات بتتسحب من نفس قاعدة البيانات: الفروع والأسعار من السيستم، الخدمات والأسئلة من لوحة الموقع.
 // الصفحة بتتخزن على سيرفرات Vercel ساعة، فأي تعديل في البيانات بيبان خلال ساعة بالكتير.
-const { SVC_SLUG, AREA_SLUG, TITLE_SLUG, S, KW_TITLE, PRICE_RE, EXTRA, COMBO, NEAR } = require('./_content.js');
+const { BRANCH_TXT, SVC_SLUG, AREA_SLUG, TITLE_SLUG, S, KW_TITLE, PRICE_RE, EXTRA, COMBO, NEAR } = require('./_content.js');
 const { POSTS } = require('./_blog.js');
 
 const PROJECT = 'new-era-dental-center';
@@ -11,7 +11,7 @@ const BRAND = 'نيو إيرا لطب الأسنان';
 const BRAND_EN = 'New Era Dental Center';
 const DEFAULT_LOGO = 'https://i.ibb.co/qLw7Tcqv/logo-Dr-shahenda-original.png';
 let LOGO = DEFAULT_LOGO; // بيتغير من اللوحة (التسويق و SEO ← اللوجو)
-const PAGES_VERSION = '1.7';
+const PAGES_VERSION = '1.8';
 
 // ---------- قراءة قاعدة البيانات ----------
 const val = v => {
@@ -51,19 +51,36 @@ const SLUG_KEY = Object.fromEntries(Object.entries(SVC_SLUG).filter(([id]) => S[
 const keyOf = s => (S[s.id] && !['rootcanal', 'endo'].includes(s.id)) ? s.id : (SLUG_KEY[s.slug || svcSlug(s)] || s.id);
 
 let CACHE = { t: 0, data: null };
+// نسخة احتياطية ثابتة من البيانات (api/_snapshot.json): لو قاعدة البيانات مردتش (حصة القراءات خلصت أو عطل)
+// الصفحات بتطلع عادي بدل ما جوجل يشوف 404 — وده كان سبب صفحات الـ 404 في Search Console.
+let SNAP = null;
+const snap = () => { if (SNAP) return SNAP; try { SNAP = require('./_snapshot.json'); } catch (e) { SNAP = {}; } return SNAP; };
+const fsDoc = o => ({ fields: Object.fromEntries(Object.entries(o || {}).map(([k, v]) => [k, toFs(v)])) });
+const toFs = v => v == null ? { nullValue: null } : Array.isArray(v) ? { arrayValue: { values: v.map(toFs) } } : typeof v === 'object' ? { mapValue: fsDoc(v) } : typeof v === 'number' ? { doubleValue: v } : typeof v === 'boolean' ? { booleanValue: v } : { stringValue: String(v) };
+const asDocs = list => (list || []).map(x => ({ name: 'x/' + (x.id || ''), ...fsDoc(x) }));
 async function loadData() {
-  // ساعة كاملة (توفير قراءات قاعدة البيانات) — ولو القراءة فشلت بنكمّل بآخر بيانات سليمة
+  // ساعة كاملة (توفير قراءات قاعدة البيانات) — ولو القراءة فشلت بنكمّل بآخر بيانات سليمة أو بالنسخة الاحتياطية
   if (CACHE.data && Date.now() - CACHE.t < 60 * 60 * 1000) return CACHE.data;
-  const [siteDoc, brs, faqRows, prices] = await Promise.all([
+  let [siteDoc, brs, faqRows, prices, docs, specs] = await Promise.all([
     getJSON(`${FS}/settings/site`).catch(() => null),
-    listAll('branches').catch(() => []),
+    listAll('branches').catch(() => null),
     getJSON(`${FS}:runQuery`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ structuredQuery: { from: [{ collectionId: 'faqs' }], where: { fieldFilter: { field: { fieldPath: 'published' }, op: 'EQUAL', value: { booleanValue: true } } }, limit: 400 } })
-    }).catch(() => []),
-    listAll('services').catch(() => [])
+    }).catch(() => null),
+    listAll('services').catch(() => null),
+    listAll('public_doctors').catch(() => null),
+    listAll('specialties').catch(() => null)
   ]);
-  if (!siteDoc && CACHE.data) { CACHE.t = Date.now() - 55 * 60 * 1000; return CACHE.data; }
+  const broken = !siteDoc || !brs || !brs.length;
+  if (broken && CACHE.data) { CACHE.t = Date.now() - 55 * 60 * 1000; return CACHE.data; }
+  const S0 = snap();
+  if (!siteDoc) siteDoc = fsDoc(S0.site || {});
+  if (!brs || !brs.length) brs = asDocs(S0.branches);
+  if (!faqRows) faqRows = (S0.faqs || []).map(f => ({ document: fsDoc(f) }));
+  if (!prices) prices = asDocs(S0.services);
+  if (!docs) docs = asDocs(S0.doctors);
+  if (!specs) specs = asDocs(S0.specialties);
   const cfg = siteDoc ? obj(siteDoc.fields) : {};
   cfg.seo = cfg.seo && typeof cfg.seo === 'object' ? cfg.seo : {};
   LOGO = /^https?:\/\//.test(String(cfg.seo.logo || '')) ? cfg.seo.logo : DEFAULT_LOGO;
@@ -72,9 +89,12 @@ async function loadData() {
     .sort((a, b) => (a.order ?? 999) - (b.order ?? 999) || String(a.name).localeCompare(String(b.name), 'ar'));
   const faqs = (Array.isArray(faqRows) ? faqRows : []).filter(r => r.document).map(r => obj(r.document.fields)).filter(f => f.q && f.a);
   const priceList = prices.map(d => obj(d.fields)).filter(p => p.name && p.active !== false && num(p.priceFrom) > 0);
+  // التخصصات وأيامها في كل فرع (من غير أسماء الدكاترة — الدكاترة مش بيظهروا للزوار)
+  const specName = Object.fromEntries(specs.map(d => [d.name.split('/').pop(), String(obj(d.fields).name || '')]));
+  const doctors = docs.map(d => obj(d.fields)).map(d => ({ specs: (Array.isArray(d.specs) ? d.specs : []).map(x => specName[x]).filter(Boolean), days: d.days && typeof d.days === 'object' ? d.days : {} }));
   const used = new Set();
   const uniq = sl => { let x = sl; while (used.has(x)) x += '-2'; used.add(x); return x; };
-  branches.forEach(b => { b.slug = uniq(branchSlug(b)); b.area = areaOf(b); });
+  branches.forEach(b => { b.slug = uniq(branchSlug(b)); b.area = areaOf(b); b.page = ((cfg.branchPages || {})[b.id]) || {}; b.sched = schedOf(b, doctors); });
   let services = (Array.isArray(cfg.services) && cfg.services.length ? cfg.services : ['exam', 'xray', 'fillings', 'fixed-prosthetics', 'removable-prosthetics', 'ortho', 'implants', 'kids', 'whitening', 'jaw-surgery', 'hollywood'].map(id => ({ id, title: S[id].kw })))
     .filter(s => s && s.id && !s.hidden && (s.title || (S[s.id] && S[s.id].kw)))
     .map(s => ({ ...s }));
@@ -83,10 +103,22 @@ async function loadData() {
   services.forEach(s => { s.kw = KW_TITLE[s.key] || s.title; s.price = priceOf(s.key, priceList); });
   const combos = [];
   COMBO.forEach(k => { const s = services.find(x => x.key === k); if (s) branches.forEach(b => combos.push({ s, b, slug: uniq(s.slug + '-' + b.slug) })); });
-  const data = { cfg, branches, services, faqs, combos };
-  CACHE = { t: Date.now(), data };
+  const data = { cfg, branches, services, faqs, combos, examFee: (priceOf('exam', priceList) || {}).min || 0 };
+  // لو اشتغلنا من النسخة الاحتياطية نجرّب قاعدة البيانات تاني بعد 5 دقايق
+  CACHE = { t: broken ? Date.now() - 55 * 60 * 1000 : Date.now(), data };
   return data;
 }
+
+// أيام كل تخصص في الفرع (0 = الأحد)
+const DAY_AR = ['الأحد', 'الاتنين', 'التلات', 'الأربع', 'الخميس', 'الجمعة', 'السبت'];
+function schedOf(b, doctors) {
+  const m = {};
+  doctors.forEach(d => { const days = Array.isArray(d.days[b.id]) ? d.days[b.id] : []; if (!days.length) return; d.specs.forEach(sp => { m[sp] = m[sp] || new Set(); days.forEach(x => m[sp].add(Number(x))); }); });
+  const off = new Set((b.daysOff || []).map(Number));
+  return Object.entries(m).map(([sp, set]) => [sp, [...set].filter(x => x >= 0 && x < 7 && !off.has(x)).sort((a, c) => ((a + 1) % 7) - ((c + 1) % 7))]).filter(x => x[1].length).sort((a, c) => c[1].length - a[1].length);
+}
+const daysTxt = ds => ds.length >= 6 ? 'كل يوم' : joinAr(ds.map(x => DAY_AR[x]));
+const offTxt = b => { const o = (b.daysOff || []).map(Number).filter(x => x >= 0 && x < 7); return o.length ? joinAr(o.map(x => DAY_AR[x])) + ' إجازة' : 'مفتوح كل أيام الأسبوع'; };
 
 // ---------- الأسعار (من "الخدمات والأسعار" في السيستم) ----------
 const num = v => { const n = Number(String(v == null ? '' : v).replace(/[^\d.]/g, '')); return isFinite(n) ? n : 0; };
@@ -220,18 +252,27 @@ function dentistSchema(b, cfg, path) {
   if (b.mapsLink) s.hasMap = b.mapsLink;
   const ll = String(b.mapsLink || '').match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
   if (ll) s.geo = { '@type': 'GeoCoordinates', latitude: Number(ll[1]), longitude: Number(ll[2]) };
-  const h = hoursOf(cfg, b); if (h) s.description = 'مواعيد العمل: ' + h;
+  const h = hoursOf(cfg, b); if (h) s.description = 'مواعيد العمل: ' + h + ' — ' + offTxt(b);
+  if (/^\d{1,2}:\d{2}$/.test(String(b.bookFrom || '')) && /^\d{1,2}:\d{2}$/.test(String(b.bookTo || ''))) {
+    const EN = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'], off = (b.daysOff || []).map(Number);
+    s.openingHoursSpecification = [{ '@type': 'OpeningHoursSpecification', dayOfWeek: EN.filter((x, i) => !off.includes(i)), opens: b.bookFrom, closes: b.bookTo }];
+  }
+  const pics = (b.page.photos || []).filter(x => /^https?:/.test(String(x)));
+  if (pics.length) s.image = pics.slice(0, 5);
   const sameAs = Object.values(cfg.socials || {}).filter(x => /^https?:/.test(String(x)));
   if (sameAs.length) s.sameAs = sameAs;
   return s;
 }
+let EXAM_FEE = 0;
+const feeOf = b => String(b.consultFee || '').trim() || (EXAM_FEE ? money(EXAM_FEE) : '');
 const branchInfo = (b, cfg) => {
   const ph = phonesOf(cfg, b), hours = hoursOf(cfg, b);
   return `<div class="info">
 ${b.address ? `<div><small>العنوان</small><strong>${esc(b.address)}</strong></div>` : ''}
 ${hours ? `<div><small>المواعيد</small><strong>${esc(hours)}</strong></div>` : ''}
 ${ph.length ? `<div><small>التليفون</small><strong dir="ltr">${ph.map(p => `<a href="tel:${telOf(p)}">${esc(p)}</a>`).join('<br>')}</strong></div>` : ''}
-${b.consultFee ? `<div><small>سعر الكشف</small><strong>${esc(b.consultFee)}</strong></div>` : ''}
+${feeOf(b) ? `<div><small>سعر الكشف</small><strong>${esc(feeOf(b))}</strong></div>` : ''}
+<div><small>أيام الإجازة</small><strong>${esc(offTxt(b))}</strong></div>
 ${b.waitTime ? `<div><small>متوسط وقت الانتظار</small><strong>${esc(b.waitTime)}</strong></div>` : ''}
 </div><iframe class="map" title="خريطة فرع ${esc(b.area)}" src="${esc(mapSrc(b))}" loading="lazy" referrerpolicy="no-referrer-when-downgrade" allowfullscreen></iframe>
 ${b.mapsLink ? `<p style="margin-top:8px"><a href="${esc(b.mapsLink)}" rel="noopener" target="_blank">📍 افتح الموقع على خرائط جوجل</a></p>` : ''}`;
@@ -240,31 +281,46 @@ ${b.mapsLink ? `<p style="margin-top:8px"><a href="${esc(b.mapsLink)}" rel="noop
 // ---------- صفحة الفرع: "دكتور أسنان في …" / "عيادة أسنان …" ----------
 function branchPage(b, data) {
   const { cfg, branches, services } = data;
-  const area = b.area, near = nearOf(b), hours = hoursOf(cfg, b), ph = phonesOf(cfg, b);
+  const area = b.area, near = nearOf(b), hours = hoursOf(cfg, b), ph = phonesOf(cfg, b), T = BRANCH_TXT[b.slug] || {}, P = b.page || {};
   const others = branches.filter(x => x.id !== b.id);
   const priced = services.filter(s => s.price).sort((x, y) => x.price.min - y.price.min);
-  const title = `دكتور أسنان في ${area}${near[0] ? ' و' + near[0] : ''} | عيادة أسنان ${area} - ${BRAND}`;
-  const desc = clip(`عيادة أسنان ${area}${b.address ? ': ' + b.address : ''}. ${joinAr(services.slice(0, 4).map(s => s.title))} وأكتر${priced[0] ? '، والأسعار تبدأ من ' + money(priced[0].price.min) : ''}. ${hours ? 'المواعيد: ' + hours + '. ' : ''}احجز أونلاين.`, 160);
+  const fee = feeOf(b), imp = services.find(s => s.key === 'implants' && s.price);
+  // العنوان: الكلمة + سعر حقيقي + "احجز دلوقتي" (عشان اللي يشوفنا في جوجل يضغط) — وممكن يتغير من اللوحة لكل فرع
+  const title = String(P.title || '').trim() || `دكتور أسنان في ${area} | كشف ${fee ? fee.replace(/\s*جنيه/, 'ج') : 'بسعر بسيط'}${imp ? ' وزراعة من ' + imp.price.min.toLocaleString('en-US') + 'ج' : ''} — احجز دلوقتي`;
+  const pk = k => services.find(s => s.key === k && s.price);
+  const deals = ['implants', 'fillings', 'root-canal', 'whitening', 'fixed-prosthetics'].map(pk).filter(Boolean).slice(0, 2).map(s => `${s.kw.split(' (')[0].replace(' التجميلي', '').replace(' بدون ألم', '')} من ${s.price.min.toLocaleString('en-US')}ج`);
+  const desc = String(P.desc || '').trim() ? clip(P.desc, 160) : clip(`${[fee && 'كشف ' + fee, ...deals].filter(Boolean).join('، ')}. عيادة أسنان ${area}${T.short ? ' ' + T.short : ''}${hours ? '، ' + hours : ''}. احجز دلوقتي أونلاين أو واتساب.`, 160);
+  const sched = b.sched || [];
   const faqs = [
     [`فين أقرب دكتور أسنان في ${area}؟`, `${BRAND} فرع ${area}${b.address ? ' في ' + b.address : ''}. تقدر تفتح المكان على خرائط جوجل من الخريطة اللي في الصفحة وتحجز أونلاين.`],
-    hours && [`مواعيد عيادة الأسنان في ${area} إيه؟`, `مواعيد العمل: ${hours}. ويفضّل الحجز المسبق عشان ميكونش في انتظار.`],
-    b.consultFee && [`سعر كشف الأسنان في ${area} كام؟`, `سعر الكشف في فرع ${area}: ${b.consultFee}. وبعد الكشف بتاخد خطة علاج مكتوبة فيها التكلفة المتوقعة.`],
-    ...priced.filter(s => COMBO.includes(s.key)).sort((x, y) => COMBO.indexOf(x.key) - COMBO.indexOf(y.key)).slice(0, 4).map(s => [`سعر ${s.kw} في ${area} كام؟`, `أسعار ${s.kw} تبدأ من ${money(s.price.min)}، والسعر النهائي بيتحدد بعد الكشف حسب حالتك.`]),
+    hours && [`مواعيد عيادة الأسنان في ${area} إيه؟`, `مواعيد العمل: ${hours} (${offTxt(b)}). ويفضّل الحجز المسبق عشان ميكونش في انتظار.`],
+    fee && [`سعر كشف الأسنان في ${area} كام؟`, `سعر الكشف في فرع ${area}: ${fee}. وبعد الكشف بتاخد خطة علاج مكتوبة فيها التكلفة المتوقعة.`],
+    sched.length && [`التقويم والزراعة في فرع ${area} أيام إيه؟`, sched.slice(0, 4).map(([sp, ds]) => `${sp}: ${daysTxt(ds)}`).join('. ') + '. ويفضّل تحجز قبلها عشان تضمن ميعادك.'],
+    ...priced.filter(s => COMBO.includes(s.key)).sort((x, y) => COMBO.indexOf(x.key) - COMBO.indexOf(y.key)).slice(0, 3).map(s => [`سعر ${s.kw} في ${area} كام؟`, `أسعار ${s.kw} تبدأ من ${money(s.price.min)}، والسعر النهائي بيتحدد بعد الكشف حسب حالتك.`]),
     near.length && [`الفرع قريب من ${joinAr(near)}؟`, `أيوه، فرع ${area} قريب من ${joinAr(near)}. افتح الخريطة في الصفحة وشوف أسهل طريق ليك.`],
     [`إزاي أحجز في عيادة ${area}؟`, `من زرار "احجز موعدك" تختار فرع ${area} واليوم والوقت، أو تكلمنا${ph[0] ? ' على ' + ph[0] : ''} أو تبعتلنا واتساب.`]
   ].filter(Boolean);
+  const pics = (P.photos || []).filter(x => /^https?:/.test(String(x))).slice(0, 8);
+  const about = String(P.about || '').split(/\n\s*\n/).map(x => x.trim()).filter(Boolean);
+  const STOP = new Set(['علاج', 'اسنان', 'طب', 'وجه', 'جراحه', 'الفم']);
+  const words = t => faqNorm(t).split(/\s+/).map(w => w.replace(/^و?ال/, '').replace(/^و(?=..)/, '')).filter(w => w.length >= 3 && !STOP.has(w));
+  const svcLink = sp => { const ws = words(sp); let best = null, sc = 0; services.forEach(s => { const t = words(s.kw + ' ' + s.title).join(' '); const n = ws.filter(w => t.includes(w)).length; if (n > sc) { sc = n; best = s; } }); if (!best) return esc(sp); const c = comboFor(data, best, b); return `<a href="/${c ? c.slug : best.slug}">${esc(sp)}</a>`; };
   const body = `
 <section><h2>عيادة أسنان في ${esc(area)}</h2>
-<p>لو بتدوّر على دكتور أسنان في ${esc(area)}${near.length ? ' أو ' + esc(joinAr(near)) : ''}، فرع ${esc(area)} من ${BRAND} بيقدّم كل خدمات طب وتجميل الأسنان للكبار والأطفال: من الكشف والحشو وعلاج العصب لحد زراعة الأسنان والتقويم المعدني والشفاف وابتسامة هوليود.</p>
-<p>في كل زيارة بنبدأ بكشف وتشخيص واضح، وبنشرحلك حالتك ونكتبلك خطة علاج بالترتيب والتكلفة المتوقعة قبل أي خطوة، عشان تبقى عارف هتعمل إيه وليه. وبنهتم بالتعقيم واستخدام أدوات معقمة لكل مريض، وبنستخدم البنج الموضعي عشان العلاج يبقى مريح.</p>
-<p>تقدر تحجز ميعادك أونلاين في دقيقة، أو تسألنا الأول على واتساب أو من الاستشارة الأونلاين المجانية في الموقع.</p></section>
+${T.intro ? `<p>${esc(T.intro)}</p>` : ''}
+${about.map(x => `<p>${esc(x)}</p>`).join('')}
+<p>فرع ${esc(area)} من ${BRAND} بيقدّم كل خدمات طب وتجميل الأسنان للكبار والأطفال: من الكشف والحشو وعلاج العصب لحد زراعة الأسنان والتقويم المعدني والشفاف وابتسامة هوليود. بنبدأ بكشف وتشخيص واضح، وبنكتبلك خطة علاج بالترتيب والتكلفة قبل أي خطوة، وبنستخدم أدوات معقمة لكل مريض.</p></section>
+${pics.length ? `<section><h2>صور فرع ${esc(area)}</h2><div class="grid">${pics.map((u, i) => `<img class="img" style="height:200px;margin:0" src="${esc(u)}" alt="عيادة أسنان ${esc(area)} - ${BRAND} ${i + 1}" loading="lazy" width="400" height="200">`).join('')}</div></section>` : ''}
+${T.why ? `<section><h2>ليه تختار فرع ${esc(area)}؟</h2><ul>${T.why.map(x => `<li>${esc(x)}</li>`).join('')}</ul></section>` : ''}
+<section><h2>عنوان ومواعيد عيادة ${esc(area)}</h2>${T.reach ? `<ul>${T.reach.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}${branchInfo(b, cfg)}</section>
+${sched.length ? `<section><h2>التخصصات المتاحة في فرع ${esc(area)} وأيامها</h2><p>كل تخصص ليه دكتور متخصص بييجي الفرع في أيام محددة، فاختار اليوم المناسب وانت بتحجز:</p><table class="ptable">${sched.map(([sp, ds]) => `<tr><td>${svcLink(sp)}</td><td>${esc(daysTxt(ds))}</td></tr>`).join('')}</table><p class="note">الأيام ممكن تتغير في المواسم والأجازات — صفحة الحجز بتوريك المواعيد الفاضية الحقيقية.</p></section>` : ''}
 ${priced.length ? `<section><h2>أسعار الأسنان في فرع ${esc(area)}</h2><table class="ptable">${priced.map(s => { const c = comboFor(data, s, b); return `<tr><td><a href="/${c ? c.slug : s.slug}">${esc(s.kw)}</a></td><td>تبدأ من ${esc(money(s.price.min))}</td></tr>`; }).join('')}</table><p class="note">${PRICE_NOTE}</p></section>` : ''}
-<section><h2>عنوان ومواعيد عيادة ${esc(area)}</h2>${branchInfo(b, cfg)}</section>
 <section><h2>خدمات الأسنان في ${esc(area)}</h2><div class="grid">${services.map(s => { const c = comboFor(data, s, b); return `<a class="card" href="/${c ? c.slug : s.slug}"><b>${esc(c ? s.kw + ' في ' + area : s.title)}</b><span>${esc(clip(descOf(s), 100))}${s.price ? ' — ' + esc(fromTxt(s)) : ''}</span></a>`; }).join('')}</div></section>
 ${faqBlock(faqs, `أسئلة شائعة عن عيادة الأسنان في ${area}`)}
+${b.reviewLink ? `<section><h2>رأيك يهمنا</h2><p>اتعالجت في فرع ${esc(area)}؟ <a href="${esc(b.reviewLink)}" rel="noopener" target="_blank">⭐ اكتب تقييمك على جوجل</a> — بيساعد غيرك يلاقي دكتور أسنان كويس في ${esc(area)}.</p></section>` : ''}
 ${others.length ? `<section><h2>فروعنا التانية</h2><div class="tags">${others.map(o => `<a href="/${o.slug}">دكتور أسنان في ${esc(o.area)}</a>`).join('')}</div></section>` : ''}`;
   return layout({
-    title, desc, path: '/' + b.slug, h1: `دكتور أسنان في ${area} — ${BRAND}`, lead: `عيادة أسنان ${area}${near.length ? ' قريبة من ' + joinAr(near) : ''}: زراعة، تقويم، علاج عصب، تجميل وأطفال. احجز أونلاين.`,
+    title, desc, path: '/' + b.slug, h1: `دكتور أسنان في ${area} — ${BRAND}`, lead: `عيادة أسنان ${area}${near.length ? ' قريبة من ' + joinAr(near) : ''}${fee ? ' — كشف ' + fee : ''}. زراعة، تقويم، علاج عصب، تجميل وأطفال. احجز دلوقتي أونلاين.`, image: pics[0],
     crumb: `<a href="/">الرئيسية</a> › عيادة أسنان ${esc(area)}`, body, data,
     schema: [dentistSchema(b, cfg), crumbSchema([['الرئيسية', '/'], ['عيادة أسنان ' + area, '/' + b.slug]]), ...faqSchema(faqs)]
   });
@@ -404,6 +460,7 @@ async function handler(req, res) {
   try {
     const q = req.query || {};
     const data = await loadData();
+    EXAM_FEE = data.examFee;
     res.setHeader('Cache-Control', 'public, max-age=300, s-maxage=3600, stale-while-revalidate=86400');
     if (q.gverify) { // ملف تحقق Search Console (اسمه بيتكتب في اللوحة)
       const f = String(q.gverify).toLowerCase(), want = String(data.cfg.seo.gscFile || '').trim().toLowerCase();
@@ -422,6 +479,11 @@ async function handler(req, res) {
     const b = data.branches.find(x => x.slug === slug); if (b) return res.status(200).send(branchPage(b, data));
     const s = data.services.find(x => x.slug === slug); if (s) return res.status(200).send(servicePage(s, data));
     const c = data.combos.find(x => x.slug === slug); if (c) return res.status(200).send(comboPage(c, data));
+    // روابط قديمة: خدمة باسمها الداخلي (زي /s1791657855037) أو "خدمة-فرع" اتغيرت ← تحويل دائم للصفحة الصح بدل 404
+    const go = to => { res.setHeader('Location', SITE + to); res.setHeader('Cache-Control', 'public, max-age=3600, s-maxage=86400'); return res.status(301).send(''); };
+    const byId = data.services.find(x => latin(x.id) === slug || x.key === slug); if (byId) return go('/' + byId.slug);
+    const br = data.branches.find(x => slug.endsWith('-' + x.slug));
+    if (br) { const pre = slug.slice(0, -br.slug.length - 1), sv = data.services.find(x => x.slug === pre || latin(x.id) === pre || x.key === pre); const cc = sv && data.combos.find(x => x.s === sv && x.b === br); return go('/' + (cc ? cc.slug : sv ? sv.slug : br.slug)); }
     res.setHeader('Cache-Control', 'public, max-age=60, s-maxage=600');
     return res.status(404).send(notFound(data));
   } catch (e) {
