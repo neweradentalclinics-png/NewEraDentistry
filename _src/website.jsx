@@ -648,6 +648,9 @@
 
         // ===== 📝 المدونة من اللوحة: مقالات جديدة بتنزل على /blog وفي الـ sitemap (مع المقالات الأساسية) =====
         const blogToday = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Cairo' });
+        const blogNow = () => new Date().toLocaleString('sv-SE', { timeZone: 'Africa/Cairo', hour12: false }).slice(0, 16); // "YYYY-MM-DD HH:MM" بتوقيت مصر
+        const blogAt = p => (p.date || '') + ' ' + (/^\d{1,2}:\d{2}$/.test(p.time || '') ? p.time.padStart(5, '0') : '00:00');
+        const blogTimeAr = t => { const [h, m] = String(t || '').split(':').map(Number); if (isNaN(h)) return ''; return `${(h % 12) || 12}${m ? ':' + String(m).padStart(2, '0') : ''} ${h < 12 ? 'ص' : 'م'}`; };
         const BlogAdmin = ({ d, setD, inp, card }) => {
             const list = d.posts || [];
             const [open, setOpen] = useState(null);
@@ -660,8 +663,8 @@
                     <p className="text-xs font-bold text-gray-600 leading-6">المقالات بتظهر في <a href="/blog" target="_blank" rel="noreferrer" className="text-pharaonic underline">صفحة المدونة</a> وفي خريطة الموقع اللي جوجل بيقراها (مع المقالات الأساسية الموجودة). المقال بيظهر بعد الحفظ بحوالي ساعة. اللي تاريخه لسه مجاش بيستنى ويتنشر لوحده في يومه.</p>
                     <button type="button" onClick={add} className="w-full bg-pharaonic text-white font-black py-2.5 rounded-xl text-sm">+ مقال جديد</button>
                 </div>
-                {list.map((p, i) => { const on = open === p.id; const slugOk = /^[a-z0-9][a-z0-9-]*$/.test(p.slug || '') && p.slug !== 'index'; const dup = p.slug && slugs.filter(x => x === p.slug).length > 1; const words = String(p.body || '').split(/\s+/).filter(Boolean).length; const future = (p.date || '') > blogToday();
-                    const status = p.hidden ? ['مسودة', 'bg-gray-100 text-gray-500'] : !slugOk || !p.title ? ['ناقص', 'bg-red-50 text-red-600'] : future ? ['مجدول ' + p.date, 'bg-amber-50 text-amber-700'] : ['منشور', 'bg-emerald-50 text-emerald-700'];
+                {list.map((p, i) => { const on = open === p.id; const slugOk = /^[a-z0-9][a-z0-9-]*$/.test(p.slug || '') && p.slug !== 'index'; const dup = p.slug && slugs.filter(x => x === p.slug).length > 1; const words = String(p.body || '').split(/\s+/).filter(Boolean).length; const future = blogAt(p) > blogNow();
+                    const status = p.hidden ? ['مسودة', 'bg-gray-100 text-gray-500'] : !slugOk || !p.title ? ['ناقص', 'bg-red-50 text-red-600'] : future ? ['مجدول ' + p.date + (p.time ? ' ' + blogTimeAr(p.time) : ''), 'bg-amber-50 text-amber-700'] : ['منشور', 'bg-emerald-50 text-emerald-700'];
                     return <div key={p.id || i} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
                         <div className="flex items-center gap-3 p-3 cursor-pointer hover:bg-gray-50" onClick={() => setOpen(on ? null : p.id)}>
                             {p.image ? <img src={p.image} alt="" className="w-12 h-12 rounded-xl object-cover bg-gray-200 shrink-0" /> : <span className="w-12 h-12 rounded-xl bg-gray-100 flex items-center justify-center shrink-0">📝</span>}
@@ -672,7 +675,11 @@
                             <label className="block text-xs font-bold text-gray-600">العنوان (بالكلمة اللي الناس بتدوّر بيها) {seoCnt(p.title, 30, 70)}<input value={p.title || ''} onChange={e => setAt(i, { title: e.target.value })} className={inp + ' mt-1 font-black'} placeholder="مثال: سعر زراعة الأسنان في حلوان 2026 — كل اللي محتاج تعرفه" /></label>
                             <div className="grid sm:grid-cols-2 gap-2">
                                 <label className="block text-xs font-bold text-gray-600">الرابط بالإنجليزي {!p.slug ? <span className="text-red-500">مطلوب</span> : !slugOk ? <span className="text-red-500">حروف إنجليزي صغيرة وأرقام وشَرطة بس</span> : dup ? <span className="text-red-500">مكرر</span> : <span className="text-emerald-600">✓</span>}<input value={p.slug || ''} dir="ltr" onChange={e => setAt(i, { slug: e.target.value.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '') })} className={inp + ' mt-1'} placeholder="dental-implants-price-helwan" /></label>
-                                <label className="block text-xs font-bold text-gray-600">تاريخ النشر<input type="date" value={p.date || ''} onChange={e => setAt(i, { date: e.target.value })} className={inp + ' mt-1'} /></label>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <label className="block text-xs font-bold text-gray-600">تاريخ النشر<input type="date" value={p.date || ''} onChange={e => setAt(i, { date: e.target.value })} className={inp + ' mt-1'} /></label>
+                                    <label className="block text-xs font-bold text-gray-600">الساعة (بتوقيت مصر)<input type="time" value={p.time || ''} onChange={e => setAt(i, { time: e.target.value })} className={inp + ' mt-1'} /></label>
+                                    <span className="col-span-2 text-[10px] text-gray-400 font-bold -mt-1">{p.time ? `هينزل ${p.date || ''} الساعة ${blogTimeAr(p.time)}` : 'من غير ساعة = بينزل أول اليوم (12 بالليل)'}</span>
+                                </div>
                             </div>
                             <label className="block text-xs font-bold text-gray-600">الوصف اللي بيظهر في جوجل {seoCnt(p.desc, 110, 160)}<textarea rows="2" value={p.desc || ''} onChange={e => setAt(i, { desc: e.target.value })} className={inp + ' mt-1'} /></label>
                             <p className="text-xs font-black">صورة المقال (اختياري)</p>
@@ -703,7 +710,7 @@
         // ترتيب أقسام الصفحة الرئيسية (بيتغير من لوحة التحكم ← الأقسام)
         const HOME_ORDER = ['about', 'services', 'vision', 'gallery', 'reviews', 'consult', 'booking', 'faq'];
         const homeOrder = cfg => { const o = (cfg.order || []).filter(k => HOME_ORDER.includes(k)); return [...o, ...HOME_ORDER.filter(k => !o.includes(k))]; };
-        const SITE_VERSION = '3.9';
+        const SITE_VERSION = '4.0';
         // ===== مصدر الحجز: حملة ميتا / جوجل / الموقع / واتساب / مباشر — بيتحفظ أول ما الزائر يدخل (30 يوم) ويتسجل مع الحجز =====
         const ATTR_KEY = 'ne_attrib_v1';
         const neAttrib = (() => {

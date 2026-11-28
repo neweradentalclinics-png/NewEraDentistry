@@ -11,7 +11,7 @@ const BRAND = 'نيو إيرا لطب الأسنان';
 const BRAND_EN = 'New Era Dental Center';
 const DEFAULT_LOGO = 'https://i.ibb.co/qLw7Tcqv/logo-Dr-shahenda-original.png';
 let LOGO = DEFAULT_LOGO; // بيتغير من اللوحة (التسويق و SEO ← اللوجو)
-const PAGES_VERSION = '1.8';
+const PAGES_VERSION = '1.9';
 
 // ---------- قراءة قاعدة البيانات ----------
 const val = v => {
@@ -60,7 +60,7 @@ const toFs = v => v == null ? { nullValue: null } : Array.isArray(v) ? { arrayVa
 const asDocs = list => (list || []).map(x => ({ name: 'x/' + (x.id || ''), ...fsDoc(x) }));
 async function loadData() {
   // ساعة كاملة (توفير قراءات قاعدة البيانات) — ولو القراءة فشلت بنكمّل بآخر بيانات سليمة أو بالنسخة الاحتياطية
-  if (CACHE.data && Date.now() - CACHE.t < 60 * 60 * 1000) return CACHE.data;
+  if (CACHE.data && Date.now() - CACHE.t < 60 * 60 * 1000 && !(CACHE.due && Date.now() >= CACHE.due)) return CACHE.data;
   let [siteDoc, brs, faqRows, prices, docs, specs] = await Promise.all([
     getJSON(`${FS}/settings/site`).catch(() => null),
     listAll('branches').catch(() => null),
@@ -105,7 +105,9 @@ async function loadData() {
   COMBO.forEach(k => { const s = services.find(x => x.key === k); if (s) branches.forEach(b => combos.push({ s, b, slug: uniq(s.slug + '-' + b.slug) })); });
   const data = { cfg, branches, services, faqs, combos, examFee: (priceOf('exam', priceList) || {}).min || 0 };
   // لو اشتغلنا من النسخة الاحتياطية نجرّب قاعدة البيانات تاني بعد 5 دقايق
-  CACHE = { t: broken ? Date.now() - 55 * 60 * 1000 : Date.now(), data };
+  // لو في مقال مجدول هينزل قبل ما الكاش يخلص، نقرا البيانات تاني في ميعاده بالظبط
+  const due = nextDue(cfg);
+  CACHE = { t: broken ? Date.now() - 55 * 60 * 1000 : Date.now(), data, due: due ? Date.now() + due : 0 };
   return data;
 }
 
@@ -409,8 +411,15 @@ function parseFaqs(t) {
   return out.filter(f => f[0] && f[1]);
 }
 const cairoToday = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Cairo' });
+// الوقت دلوقتي بتوقيت مصر "YYYY-MM-DD HH:MM" — عشان جدولة المقالات بالساعة
+const cairoNow = () => { const f = Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Cairo', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date()).map(x => [x.type, x.value])); return `${f.year}-${f.month}-${f.day} ${f.hour}:${f.minute}`; };
+const postTime = p => /^\d{1,2}:\d{2}$/.test(String(p.time || '')) ? String(p.time).padStart(5, '0') : '00:00';
+const stamp = t => { const m = String(t).match(/^(\d{4})-(\d\d)-(\d\d) (\d\d):(\d\d)$/); return m ? Date.UTC(+m[1], m[2] - 1, +m[3], +m[4], +m[5]) : 0; };
+// كام ملي ثانية فاضلة على أقرب مقال مجدول (0 = مفيش)
+const nextDue = cfg => { const now = cairoNow(); let best = 0; (Array.isArray(cfg.posts) ? cfg.posts : []).forEach(p => { if (!p || p.hidden || !/^\d{4}-\d{2}-\d{2}$/.test(String(p.date || ''))) return; const at = p.date + ' ' + postTime(p); if (at > now) { const ms = stamp(at) - stamp(now); if (!best || ms < best) best = ms; } }); return best; };
 const dashPosts = cfg => (Array.isArray(cfg.posts) ? cfg.posts : [])
   .filter(p => p && !p.hidden && p.title && /^[a-z0-9][a-z0-9-]*$/.test(String(p.slug || '')) && p.slug !== 'index')
+  .filter(p => !/^\d{4}-\d{2}-\d{2}$/.test(String(p.date || '')) || (p.date + ' ' + postTime(p)) <= cairoNow())
   .map(p => ({ slug: p.slug, date: /^\d{4}-\d{2}-\d{2}$/.test(String(p.date || '')) ? p.date : cairoToday(), updated: /^\d{4}-\d{2}-\d{2}$/.test(String(p.updated || '')) ? p.updated : undefined,
     title: String(p.title), desc: String(p.desc || '').trim() || clip(String(p.body || '').replace(/^\s*#.*$/mg, ''), 155), image: /^https?:\/\//.test(String(p.image || '')) ? p.image : '',
     services: Array.isArray(p.services) ? p.services : [], sections: parseBody(p.body, p.title), faqs: parseFaqs(p.faqs) }))
@@ -461,7 +470,10 @@ async function handler(req, res) {
     const q = req.query || {};
     const data = await loadData();
     EXAM_FEE = data.examFee;
-    res.setHeader('Cache-Control', 'public, max-age=300, s-maxage=3600, stale-while-revalidate=86400');
+    // لو في مقال مجدول قريب: الصفحات متتخزنش في Vercel بعد ميعاده عشان ينزل في الساعة المظبوطة
+    const left = data.cfg ? nextDue(data.cfg) : 0;
+    if (left && left < 3600 * 1000) { const sec = Math.max(30, Math.ceil(left / 1000)); res.setHeader('Cache-Control', `public, max-age=${Math.min(300, sec)}, s-maxage=${sec}, stale-while-revalidate=30`); }
+    else res.setHeader('Cache-Control', 'public, max-age=300, s-maxage=3600, stale-while-revalidate=86400');
     if (q.gverify) { // ملف تحقق Search Console (اسمه بيتكتب في اللوحة)
       const f = String(q.gverify).toLowerCase(), want = String(data.cfg.seo.gscFile || '').trim().toLowerCase();
       if (want && f === want && /^google[a-z0-9]+\.html$/.test(want)) { res.setHeader('Content-Type', 'text/html; charset=utf-8'); return res.status(200).send('google-site-verification: ' + want); }
@@ -484,7 +496,7 @@ async function handler(req, res) {
     const byId = data.services.find(x => latin(x.id) === slug || x.key === slug); if (byId) return go('/' + byId.slug);
     const br = data.branches.find(x => slug.endsWith('-' + x.slug));
     if (br) { const pre = slug.slice(0, -br.slug.length - 1), sv = data.services.find(x => x.slug === pre || latin(x.id) === pre || x.key === pre); const cc = sv && data.combos.find(x => x.s === sv && x.b === br); return go('/' + (cc ? cc.slug : sv ? sv.slug : br.slug)); }
-    res.setHeader('Cache-Control', 'public, max-age=60, s-maxage=600');
+    res.setHeader('Cache-Control', `public, max-age=60, s-maxage=${left && left < 600000 ? Math.max(30, Math.ceil(left / 1000)) : 600}`);
     return res.status(404).send(notFound(data));
   } catch (e) {
     res.setHeader('Cache-Control', 'no-store');
